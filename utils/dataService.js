@@ -1,0 +1,642 @@
+import { getSupabase, isSupabaseConfigured } from './supabase/client';
+
+export const INITIAL_PRODUCTS = [
+  // 1. Lay's Collection
+  {
+    id: '11111111-1111-1111-1111-111111110001',
+    name: "Lay's India's Magic Masala",
+    category: 'snack',
+    section_name: "Lay's Collection",
+    price: 20.0,
+    stock_count: 45,
+    image_url: "/blue lay's.jpg",
+    description: "Classic spicy Indian blue Lay's with aromatic spices and herbs.",
+  },
+  {
+    id: '11111111-1111-1111-1111-111111110002',
+    name: "Lay's American Style Cream & Onion",
+    category: 'snack',
+    section_name: "Lay's Collection",
+    price: 20.0,
+    stock_count: 50,
+    image_url: "/American Style .jpeg",
+    description: 'Tangy sour cream blended with savory onion flavor.',
+  },
+  {
+    id: '11111111-1111-1111-1111-111111110003',
+    name: "Lay's Classic Salted",
+    category: 'snack',
+    section_name: "Lay's Collection",
+    price: 20.0,
+    stock_count: 40,
+    image_url: "/Lay's Classic Salted.jpg",
+    description: 'Crispy, golden salted potato chips made with selected potatoes.',
+  },
+  {
+    id: '11111111-1111-1111-1111-111111110004',
+    name: "Lay's Spanish Tomato Tango",
+    category: 'snack',
+    section_name: "Lay's Collection",
+    price: 20.0,
+    stock_count: 35,
+    image_url: "/Lay's Spanish Tomato Tango .jpg",
+    description: 'Sweet and tangy ripe Spanish tomato flavored crispy chips.',
+  },
+
+  // 2. Kurkure Collection
+  {
+    id: '22222222-2222-2222-2222-222222220001',
+    name: 'Kurkure Masala Munch',
+    category: 'snack',
+    section_name: 'Kurkure Collection',
+    price: 20.0,
+    stock_count: 45,
+    image_url: '/Kurkure Masala Munch.jpg',
+    description: 'Desi spiced, Tedha Hai Par Mera Hai crunchy tea-time favorite.',
+  },
+  {
+    id: '22222222-2222-2222-2222-222222220004',
+    name: 'Kurkure Puffcorn',
+    category: 'snack',
+    section_name: 'Kurkure Collection',
+    price: 20.0,
+    stock_count: 40,
+    image_url: '/puffcorn.jpg',
+    description: 'Melt-in-the-mouth light cheesy puffed corn snack.',
+  },
+
+  // 3. Bingo Collection
+  {
+    id: '77777777-7777-7777-7777-777777770001',
+    name: 'Bingo Achaari Masti',
+    category: 'snack',
+    section_name: 'Bingo Collection',
+    price: 20.0,
+    stock_count: 40,
+    image_url: '/Achari.jpg',
+    description: 'Spicy tangy Indian pickle flavored crispy bite triangles.',
+  },
+  {
+    id: '77777777-7777-7777-7777-777777770002',
+    name: 'Bingo Very Peri Peri',
+    category: 'snack',
+    section_name: 'Bingo Collection',
+    price: 20.0,
+    stock_count: 35,
+    image_url: '/very peri peri.jpg',
+    description: 'Fiery peri-peri spice dusted crunchy snack with a punch.',
+  },
+
+  // 4. Soya Sticks
+  {
+    id: '88888888-8888-8888-8888-888888880001',
+    name: 'Soya Sticks (Classic)',
+    category: 'snack',
+    section_name: 'Soya Sticks',
+    price: 20.0,
+    stock_count: 35,
+    image_url: '/soya sticks.jpeg',
+    description: 'High-crunch roasted protein soya sticks with chatpata masala.',
+  },
+
+  // 5. Packed Maggi
+  {
+    id: '33333333-3333-3333-3333-333333330001',
+    name: 'Maggi 2-Minute Noodles',
+    category: 'grocery',
+    section_name: 'Packed Maggi',
+    price: 14.0,
+    stock_count: 60,
+    image_url: '/maggi.jpg',
+    description: 'The indisputable king of 2 AM hostel hunger. Authentic masala tastemaker.',
+  },
+
+  // 6. Fresh Eggs
+  {
+    id: '99999999-9999-9999-9999-999999990001',
+    name: 'Farm Fresh Eggs (Tray/Pack)',
+    category: 'grocery',
+    section_name: 'Fresh Eggs',
+    price: 48.0,
+    stock_count: 25,
+    image_url: '/egg.png',
+    description: 'Fresh protein-rich poultry eggs for midnight omelettes & boils.',
+  },
+
+  // 7. Oreo
+  {
+    id: '44444444-4444-4444-4444-444444440001',
+    name: 'Oreo Vanilla Cream Biscuits',
+    category: 'snack',
+    section_name: 'Oreo',
+    price: 30.0,
+    stock_count: 50,
+    image_url: '/oreo.jpg',
+    description: 'Rich dark chocolate biscuit cookies sandwiched with smooth vanilla cream.',
+  },
+
+  // 8. Other Biscuits
+  {
+    id: '55555555-5555-5555-5555-555555550002',
+    name: 'Parle-G',
+    category: 'snack',
+    section_name: 'Other Biscuits',
+    price: 10.0,
+    stock_count: 60,
+    image_url: '/parle-g.jpg',
+    description: 'The legendary glucose biscuit, powering Indian students for generations.',
+  },
+  {
+    id: '55555555-5555-5555-5555-555555550003',
+    name: 'Bourbon Biscuit',
+    category: 'snack',
+    section_name: 'Other Biscuits',
+    price: 25.0,
+    stock_count: 40,
+    image_url: '/Bourbon.jpg',
+    description: 'Crunchy chocolate biscuits with rich chocolate cream filling and sugar crystals.',
+  },
+  {
+    id: '55555555-5555-5555-5555-555555550004',
+    name: 'Milk Bikis',
+    category: 'snack',
+    section_name: 'Other Biscuits',
+    price: 20.0,
+    stock_count: 35,
+    image_url: '/milk-bikis.jpg',
+    description: 'Wholesome milk energy biscuits, the classic childhood chai dunker.',
+  },
+  {
+    id: '55555555-5555-5555-5555-555555550005',
+    name: 'Tiger Biscuit',
+    category: 'snack',
+    section_name: 'Other Biscuits',
+    price: 10.0,
+    stock_count: 50,
+    image_url: '/tiger-biscuit.jpg',
+    description: 'Fortified glucose wheat biscuits for quick midnight study energy.',
+  },
+
+  // 9. Print Services
+  {
+    id: '66666666-6666-6666-6666-666666660001',
+    name: 'Black & White Printout (Per Page)',
+    category: 'print_service',
+    section_name: 'Print Services',
+    price: 3.0,
+    stock_count: 500,
+    image_url: 'https://images.unsplash.com/photo-1589330694653-ded6df03f754?w=600&auto=format&fit=crop&q=80',
+    description: 'Crisp 80 GSM monochrome laser print for assignments, notes & lab manuals.',
+  },
+  {
+    id: '66666666-6666-6666-6666-666666660002',
+    name: 'Color Printout (Per Page)',
+    category: 'print_service',
+    section_name: 'Print Services',
+    price: 10.0,
+    stock_count: 250,
+    image_url: 'https://images.unsplash.com/photo-1562564055-71e051d33c19?w=600&auto=format&fit=crop&q=80',
+    description: 'High-res vivid color laser prints for project submissions, diagrams and posters.',
+  },
+  {
+    id: '66666666-6666-6666-6666-666666660003',
+    name: 'Blank A4 Sheets (Bundle of 10)',
+    category: 'print_service',
+    section_name: 'Print Services',
+    price: 15.0,
+    stock_count: 60,
+    image_url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
+    description: 'Premium JK 75 GSM bright white blank sheets for rough work and drafts.',
+  },
+  {
+    id: '66666666-6666-6666-6666-666666660004',
+    name: 'Spiral Binding - Transparent Cover',
+    category: 'print_service',
+    section_name: 'Print Services',
+    price: 35.0,
+    stock_count: 30,
+    image_url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
+    description: 'Durable plastic spiral comb binding with front transparent sheet and back card.',
+  },
+];
+
+const LOCAL_STORAGE_PRODUCTS_KEY = 'khaomojo_products_v3';
+const LOCAL_STORAGE_ORDERS_KEY = 'khaomojo_orders_v3';
+
+// Initialize global memory storage for SSR and API routes
+globalThis.__khaomojo_products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
+if (!globalThis.__khaomojo_orders) {
+  globalThis.__khaomojo_orders = [];
+}
+
+// Create broadcast channel for tab-to-tab realtime sync during local/mock mode
+let broadcastChannel = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    broadcastChannel = new BroadcastChannel('khaomojo_events');
+  } catch {
+    broadcastChannel = null;
+  }
+}
+
+/**
+ * Get products list
+ */
+export async function fetchProducts() {
+  const supabase = getSupabase();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Supabase fetch products error, falling back:', error.message);
+      } else if (data && data.length > 0) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('Supabase fetch exception:', err);
+    }
+  }
+
+  // Fallback to local storage or initial products
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // ignore parse error
+      }
+    }
+    // Initialize in localStorage
+    localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
+  }
+
+  return INITIAL_PRODUCTS;
+}
+
+/**
+ * Update product stock / price (Admin function)
+ */
+export async function updateProductDetails(productId, updates) {
+  const supabase = getSupabase();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .update(updates)
+        .eq('id', productId)
+        .select()
+        .single();
+
+      if (!error && data) {
+        return data;
+      }
+      console.warn('Supabase update product error:', error?.message);
+    } catch (err) {
+      console.warn('Supabase update product exception:', err);
+    }
+  }
+
+  // Local storage update
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
+    const list = raw ? JSON.parse(raw) : [...INITIAL_PRODUCTS];
+    const index = list.findIndex((p) => p.id === productId);
+    if (index !== -1) {
+      list[index] = { ...list[index], ...updates };
+      localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(list));
+      if (broadcastChannel) {
+        broadcastChannel.postMessage({ type: 'PRODUCT_UPDATED', payload: list[index] });
+      }
+      return list[index];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Upload print file to Supabase storage or simulate local object URL
+ */
+export async function uploadPrintDocument(file) {
+  const supabase = getSupabase();
+  const fileExt = file.name.split('.').pop() || 'pdf';
+  const fileName = `print_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('print-files')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (!error && data) {
+        const { data: publicData } = supabase.storage
+          .from('print-files')
+          .getPublicUrl(fileName);
+
+        return {
+          fileName: file.name,
+          url: publicData.publicUrl,
+          fileSize: file.size,
+        };
+      }
+      console.warn('Supabase storage upload error:', error?.message);
+    } catch (err) {
+      console.warn('Supabase storage upload exception:', err);
+    }
+  }
+
+  // Simulation: Convert to Data URL or Blob URL for instant local preview/download
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        fileName: file.name,
+        url: reader.result, // base64 data url
+        fileSize: file.size,
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Submit a customer order with items
+ */
+export async function createOrder({ customerName, roomNumber, phoneNumber, items, totalAmount }) {
+  const supabase = getSupabase();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      // 1. Insert order
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          customer_name: customerName,
+          room_number: roomNumber,
+          phone_number: phoneNumber,
+          total_amount: totalAmount,
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // 2. Insert order items
+      const orderItemsToInsert = items.map((item) => ({
+        order_id: orderData.id,
+        product_id: item.id,
+        quantity: item.quantity,
+        unit_price: item.price,
+        print_file_url: item.printFileUrl || null,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItemsToInsert);
+
+      if (itemsError) throw itemsError;
+
+      return {
+        ...orderData,
+        items: orderItemsToInsert,
+      };
+    } catch (err) {
+      console.warn('Supabase createOrder error, utilizing client fallback:', err);
+    }
+  }
+
+  // Local/Offline Fallback simulation
+  const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const newOrder = {
+    id: orderId,
+    customer_name: customerName,
+    room_number: roomNumber,
+    phone_number: phoneNumber,
+    total_amount: totalAmount,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    items: items.map((item) => ({
+      id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      order_id: orderId,
+      product_id: item.id,
+      product_name: item.name,
+      quantity: item.quantity,
+      unit_price: item.price,
+      print_file_url: item.printFileUrl || null,
+      print_file_name: item.printFileName || null,
+    })),
+  };
+
+  if (typeof window !== 'undefined') {
+    // 1. Save order to localStorage
+    const rawOrders = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
+    const orderList = rawOrders ? JSON.parse(rawOrders) : [];
+    orderList.unshift(newOrder);
+    localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(orderList));
+
+    // 2. Deduct product stock locally to mimic Postgres trigger
+    const rawProducts = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
+    const prodList = rawProducts ? JSON.parse(rawProducts) : [...INITIAL_PRODUCTS];
+    items.forEach((item) => {
+      const p = prodList.find((x) => x.id === item.id);
+      if (p) {
+        p.stock_count = Math.max(0, (p.stock_count || 0) - item.quantity);
+      }
+    });
+    localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(prodList));
+
+    // 3. Broadcast to all open tabs (storefront + admin)
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: 'ORDER_CREATED', payload: newOrder });
+      broadcastChannel.postMessage({ type: 'PRODUCTS_UPDATED', payload: prodList });
+    }
+    // 4. Save to server global memory
+    if (globalThis.__khaomojo_orders) {
+      globalThis.__khaomojo_orders.unshift(newOrder);
+    }
+  } else if (globalThis.__khaomojo_orders) {
+    globalThis.__khaomojo_orders.unshift(newOrder);
+  }
+
+  return newOrder;
+}
+
+/**
+ * Fetch all orders (Admin function)
+ */
+export async function fetchOrders() {
+  const supabase = getSupabase();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          customer_name,
+          room_number,
+          phone_number,
+          total_amount,
+          status,
+          created_at,
+          order_items (
+            id,
+            quantity,
+            unit_price,
+            print_file_url,
+            products (
+              id,
+              name,
+              category
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        // Normalize order_items
+        return data.map((order) => ({
+          ...order,
+          items: (order.order_items || []).map((item) => ({
+            id: item.id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            print_file_url: item.print_file_url,
+            product_name: item.products?.name || 'Item',
+            product_id: item.products?.id,
+          })),
+        }));
+      }
+      console.warn('Supabase fetch orders error:', error?.message);
+    } catch (err) {
+      console.warn('Supabase fetch orders exception:', err);
+    }
+  }
+
+  // Local fallback
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        // ignore parse error
+      }
+    }
+  }
+
+  return globalThis.__khaomojo_orders || [];
+}
+
+/**
+ * Update order status (pending -> processing -> delivered -> cancelled)
+ */
+export async function updateOrderStatus(orderId, newStatus) {
+  const supabase = getSupabase();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+      if (!error && data) {
+        return data;
+      }
+      console.warn('Supabase update order error:', error?.message);
+    } catch (err) {
+      console.warn('Supabase update order exception:', err);
+    }
+  }
+
+  // Local fallback
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
+    const orderList = raw ? JSON.parse(raw) : [];
+    const index = orderList.findIndex((o) => o.id === orderId);
+    if (index !== -1) {
+      orderList[index].status = newStatus;
+      localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(orderList));
+      if (broadcastChannel) {
+        broadcastChannel.postMessage({ type: 'ORDER_STATUS_CHANGED', payload: orderList[index] });
+      }
+      return orderList[index];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Subscribe to realtime updates for orders and products
+ */
+export function subscribeToRealtime({ onOrderChange, onProductChange }) {
+  const supabase = getSupabase();
+
+  // 1. Supabase Realtime Subscription if configured
+  let supabaseChannel = null;
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      supabaseChannel = supabase
+        .channel('khaomojo-live')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          (payload) => {
+            if (onOrderChange) onOrderChange(payload);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'products' },
+          (payload) => {
+            if (onProductChange) onProductChange(payload);
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn('Failed to set up Supabase channel:', err);
+    }
+  }
+
+  // 2. BroadcastChannel for local/multi-tab sync
+  const handleBroadcastMessage = (event) => {
+    const { type, payload } = event.data || {};
+    if (type === 'ORDER_CREATED' && onOrderChange) {
+      onOrderChange({ eventType: 'INSERT', new: payload });
+    } else if (type === 'ORDER_STATUS_CHANGED' && onOrderChange) {
+      onOrderChange({ eventType: 'UPDATE', new: payload });
+    } else if ((type === 'PRODUCT_UPDATED' || type === 'PRODUCTS_UPDATED') && onProductChange) {
+      onProductChange({ eventType: 'UPDATE', new: payload });
+    }
+  };
+
+  if (broadcastChannel) {
+    broadcastChannel.addEventListener('message', handleBroadcastMessage);
+  }
+
+  // Cleanup function
+  return () => {
+    if (supabaseChannel && supabase) {
+      supabase.removeChannel(supabaseChannel);
+    }
+    if (broadcastChannel) {
+      broadcastChannel.removeEventListener('message', handleBroadcastMessage);
+    }
+  };
+}
