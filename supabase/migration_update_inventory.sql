@@ -222,7 +222,6 @@ VALUES
     ),
     (
         '66666666-6666-6666-6666-666666660004',
-        'Spiral Binding - Transparent Cover',
         'print_service',
         'Print Services',
         35.00,
