@@ -69,11 +69,25 @@ export const SECTIONS_CONFIG = [
     badge: '2 AM Fast Printout',
     badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
   },
+  {
+    name: 'Academic & Tech Services',
+    tagline: 'Custom PPTs, lab Excel sheets & coding projects for college deadlines',
+    badge: 'Tech & PPTs',
+    badgeColor: 'border-violet-500/30 text-violet-400 bg-violet-500/10',
+  },
 ];
 
 function getProductSection(product) {
   if (product.section_name) return product.section_name;
   const name = (product.name || '').toLowerCase();
+  if (
+    product.category === 'academic_service' ||
+    name.includes('ppt') ||
+    name.includes('excel sheet') ||
+    name.includes('coding')
+  ) {
+    return 'Academic & Tech Services';
+  }
   if (name.includes("lay's") || name.includes('lays')) return "Lay's Collection";
   if (name.includes('kurkure') || name.includes('puffcorn')) return 'Kurkure Collection';
   if (name.includes('bingo') || name.includes('achari') || name.includes('achaari') || name.includes('peri peri')) return 'Bingo Collection';
@@ -346,27 +360,48 @@ export default function StorefrontPage() {
                 className="space-y-4 scroll-mt-24"
               >
                 {/* Distinct Section Header as requested */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-zinc-800/80 pb-3 gap-2">
+                {section.name === 'Academic & Tech Services' ? (
                   <div>
-                    <div className="flex items-center gap-2.5">
-                      <h2 className="text-2xl font-bold text-white tracking-tight">
-                        {section.name}
-                      </h2>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${section.badgeColor}`}
-                      >
-                        {section.badge}
+                    <h2 className="text-2xl font-bold text-white mb-4 mt-8">Academic & Tech Services</h2>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/80 pb-3 gap-2 -mt-2">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${section.badgeColor}`}
+                        >
+                          {section.badge}
+                        </span>
+                        <p className="text-xs text-zinc-400">
+                          {section.tagline}
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono text-zinc-500 self-start sm:self-auto">
+                        {section.products.length} {section.products.length === 1 ? 'item' : 'items'}
                       </span>
                     </div>
-                    <p className="text-xs text-zinc-400 mt-1">
-                      {section.tagline}
-                    </p>
                   </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-zinc-800/80 pb-3 gap-2">
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <h2 className="text-2xl font-bold text-white tracking-tight">
+                          {section.name}
+                        </h2>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${section.badgeColor}`}
+                        >
+                          {section.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        {section.tagline}
+                      </p>
+                    </div>
 
-                  <span className="text-xs font-mono text-zinc-500 self-start sm:self-auto">
-                    {section.products.length} {section.products.length === 1 ? 'item' : 'items'}
-                  </span>
-                </div>
+                    <span className="text-xs font-mono text-zinc-500 self-start sm:self-auto">
+                      {section.products.length} {section.products.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+                )}
 
                 {/* Section Specific Product Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">

@@ -208,10 +208,40 @@ export const INITIAL_PRODUCTS = [
     image_url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
     description: 'Premium JK 75 GSM bright white blank sheets for rough work and drafts.',
   },
+  {
+    id: 'aaa11111-1111-1111-1111-111111110001',
+    name: 'College PPT Making',
+    category: 'academic_service',
+    section_name: 'Academic & Tech Services',
+    price: 100.0,
+    stock_count: 50,
+    image_url: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&auto=format&fit=crop&q=80',
+    description: 'Custom professional presentation design for college seminars, research topics, and course submissions.',
+  },
+  {
+    id: 'aaa11111-1111-1111-1111-111111110002',
+    name: 'Physics Excel Sheet Making',
+    category: 'academic_service',
+    section_name: 'Academic & Tech Services',
+    price: 100.0,
+    stock_count: 50,
+    image_url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
+    description: 'Formatted lab calculation spreadsheets with customized formulas, graphs, error analysis and tables.',
+  },
+  {
+    id: 'aaa11111-1111-1111-1111-111111110003',
+    name: 'Coding Project',
+    category: 'academic_service',
+    section_name: 'Academic & Tech Services',
+    price: 200.0,
+    stock_count: 30,
+    image_url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
+    description: 'Academic code solutions, minor project architectures, debugging assistance, and prototype builds.',
+  },
 ];
 
-const LOCAL_STORAGE_PRODUCTS_KEY = 'khaomojo_products_v4';
-const LOCAL_STORAGE_ORDERS_KEY = 'khaomojo_orders_v4';
+const LOCAL_STORAGE_PRODUCTS_KEY = 'khaomojo_products_v5';
+const LOCAL_STORAGE_ORDERS_KEY = 'khaomojo_orders_v5';
 
 // Initialize global memory storage for SSR and API routes
 globalThis.__khaomojo_products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
@@ -234,7 +264,7 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
  */
 function sanitizeProductList(list) {
   if (!Array.isArray(list)) return [...INITIAL_PRODUCTS];
-  return list
+  let res = list
     .filter((p) => p && !p.name?.toLowerCase().includes('spiral binding') && p.id !== '66666666-6666-6666-6666-666666660004')
     .map((p) => {
       if (p.id === '99999999-9999-9999-9999-999999990001' || p.name?.includes('(Tray/Pack)')) {
@@ -248,6 +278,16 @@ function sanitizeProductList(list) {
       }
       return p;
     });
+
+  // Ensure academic services are included if not yet present in fetched list
+  const academicItems = INITIAL_PRODUCTS.filter((p) => p.category === 'academic_service');
+  for (const ac of academicItems) {
+    if (!res.some((p) => p.id === ac.id || p.name?.toLowerCase() === ac.name.toLowerCase())) {
+      res.push(ac);
+    }
+  }
+
+  return res;
 }
 
 /**

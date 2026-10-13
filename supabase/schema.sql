@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
-    category TEXT NOT NULL CHECK (category IN ('snack', 'grocery', 'print_service')),
+    category TEXT NOT NULL CHECK (category IN ('snack', 'grocery', 'print_service', 'academic_service', 'Academic & Tech Services')),
     section_name TEXT NOT NULL DEFAULT 'Lay''s Collection',
     price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
     stock_count INTEGER NOT NULL DEFAULT 0 CHECK (stock_count >= 0),

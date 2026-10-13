@@ -192,6 +192,35 @@ VALUES
         15.00,
         60,
         'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80'
+    ),
+
+    -- 10. Academic & Tech Services
+    (
+        'aaa11111-1111-1111-1111-111111110001',
+        'College PPT Making',
+        'academic_service',
+        'Academic & Tech Services',
+        100.00,
+        99,
+        'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&auto=format&fit=crop&q=80'
+    ),
+    (
+        'aaa11111-1111-1111-1111-111111110002',
+        'Physics Excel Sheet Making',
+        'academic_service',
+        'Academic & Tech Services',
+        100.00,
+        99,
+        'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&auto=format&fit=crop&q=80'
+    ),
+    (
+        'aaa11111-1111-1111-1111-111111110003',
+        'Coding Project',
+        'academic_service',
+        'Academic & Tech Services',
+        200.00,
+        99,
+        'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80'
     )
 ON CONFLICT (id) DO UPDATE SET 
     name = EXCLUDED.name,

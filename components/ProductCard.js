@@ -28,6 +28,13 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
   };
 
   const getCategoryBadge = () => {
+    if (product.category === 'academic_service' || product.section_name === 'Academic & Tech Services') {
+      return (
+        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-violet-500/10 text-violet-400 border border-violet-500/20">
+          Academic Tech
+        </span>
+      );
+    }
     if (product.category === 'print_service') {
       return (
         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
@@ -138,7 +145,7 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
             {product.name}
           </h3>
           <p className="mt-1 text-xs text-zinc-400 line-clamp-2 leading-relaxed">
-            {product.description || (isPrintService ? 'Upload assignment/document for room delivery.' : 'Fresh late-night snack for room delivery.')}
+            {product.description || (isPrintService ? 'Upload assignment/document for room delivery.' : product.category === 'academic_service' ? 'Academic & tech project assistance for college students.' : 'Fresh late-night snack for room delivery.')}
           </p>
         </div>
 
@@ -150,6 +157,8 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
                 ? 'Per Page'
                 : product.name.toLowerCase().includes('egg') || product.name.includes('Piece')
                 ? 'Per Piece'
+                : product.category === 'academic_service' || product.section_name === 'Academic & Tech Services'
+                ? 'Base Price'
                 : 'Price'}
             </span>
             <span className="text-lg font-bold font-mono text-emerald-400">
