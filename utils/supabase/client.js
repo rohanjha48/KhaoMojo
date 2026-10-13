@@ -4,11 +4,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey;
   return (
-    Boolean(supabaseUrl) &&
-    Boolean(supabaseAnonKey) &&
-    !supabaseUrl.includes('placeholder') &&
-    !supabaseAnonKey.includes('placeholder')
+    Boolean(url) &&
+    Boolean(key) &&
+    !url.includes('placeholder') &&
+    !key.includes('placeholder')
   );
 };
 
@@ -20,8 +22,11 @@ let clientInstance = null;
 export function getSupabase() {
   if (clientInstance) return clientInstance;
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey;
+
   if (isSupabaseConfigured()) {
-    clientInstance = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    clientInstance = createSupabaseClient(url, key, {
       auth: {
         persistSession: false,
       },
@@ -32,15 +37,27 @@ export function getSupabase() {
       },
     });
   } else {
-    // Return null or placeholder client
     clientInstance = null;
   }
 
   return clientInstance;
 }
 
+/**
+ * Helper to create a Supabase client on demand using env credentials
+ */
+export function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey;
+  if (!isSupabaseConfigured()) return null;
+  return createSupabaseClient(url, key);
+}
+
 export const supabase = isSupabaseConfigured()
-  ? createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  ? createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey
+    )
   : null;
 
 export default getSupabase;

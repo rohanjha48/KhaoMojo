@@ -8,7 +8,12 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
   const { addToCart, items } = useCart();
 
   const isOutOfStock = (product.stock_count || 0) <= 0;
-  const isPrintService = product.category === 'print_service';
+  const isPrintService =
+    (product.category === 'print_service' ||
+      product.category === 'Print Services' ||
+      product.section_name === 'Print Services') &&
+    !product.name?.toLowerCase().includes('sheet') &&
+    !product.name?.toLowerCase().includes('bundle');
 
   // Check how many are currently in cart
   const currentInCart = items
@@ -28,14 +33,22 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
   };
 
   const getCategoryBadge = () => {
-    if (product.category === 'academic_service' || product.section_name === 'Academic & Tech Services') {
+    if (
+      product.category === 'academic_service' ||
+      product.category === 'Academic & Tech Services' ||
+      product.section_name === 'Academic & Tech Services'
+    ) {
       return (
         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-violet-500/10 text-violet-400 border border-violet-500/20">
           Academic Tech
         </span>
       );
     }
-    if (product.category === 'print_service') {
+    if (
+      product.category === 'print_service' ||
+      product.category === 'Print Services' ||
+      product.section_name === 'Print Services'
+    ) {
       return (
         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
           Print Service
@@ -110,6 +123,11 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
             isOutOfStock ? 'grayscale opacity-50' : ''
           }`}
           loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src =
+              'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&auto=format&fit=crop&q=80';
+          }}
         />
 
         {/* Gradient overlay */}

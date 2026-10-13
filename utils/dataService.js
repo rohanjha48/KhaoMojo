@@ -264,28 +264,40 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
  */
 function sanitizeProductList(list) {
   if (!Array.isArray(list)) return [...INITIAL_PRODUCTS];
+
+  const fallbackByName = new Map();
+  for (const init of INITIAL_PRODUCTS) {
+    if (init.name) {
+      fallbackByName.set(init.name.toLowerCase().trim(), init);
+    }
+  }
+
   let res = list
     .filter((p) => p && !p.name?.toLowerCase().includes('spiral binding') && p.id !== '66666666-6666-6666-6666-666666660004')
     .map((p) => {
-      if (p.id === '99999999-9999-9999-9999-999999990001' || p.name?.includes('(Tray/Pack)')) {
-        return {
-          ...p,
-          name: 'Farm Fresh Eggs (Per Piece)',
-          price: 8.0,
-          stock_count: p.stock_count || 60,
-          description: 'Fresh protein-rich poultry egg sold per piece for midnight boiled eggs, bhurji or omelettes.',
-        };
-      }
-      return p;
-    });
+      const match = fallbackByName.get(p.name?.toLowerCase().trim());
+      let img = p.image_url;
+      const isMissingImage =
+        !img ||
+        img === '/placeholder.png' ||
+        img === '/ppt.jpg' ||
+        img === '/excel.jpg' ||
+        img === '/coding.jpg' ||
+        img === '/print_bw.jpg' ||
+        img === '/print_color.jpg' ||
+        img === '/a4_sheets.jpg';
 
-  // Ensure academic services are included if not yet present in fetched list
-  const academicItems = INITIAL_PRODUCTS.filter((p) => p.category === 'academic_service');
-  for (const ac of academicItems) {
-    if (!res.some((p) => p.id === ac.id || p.name?.toLowerCase() === ac.name.toLowerCase())) {
-      res.push(ac);
-    }
-  }
+      if (match && isMissingImage) {
+        img = match.image_url || img;
+      }
+
+      return {
+        ...p,
+        image_url: img,
+        section_name: p.section_name || match?.section_name || p.category,
+        description: p.description || match?.description || '',
+      };
+    });
 
   return res;
 }

@@ -80,25 +80,34 @@ export const SECTIONS_CONFIG = [
 function getProductSection(product) {
   if (product.section_name) return product.section_name;
   const name = (product.name || '').toLowerCase();
+  const cat = (product.category || '').toLowerCase();
+
   if (
-    product.category === 'academic_service' ||
+    cat === 'academic_service' ||
+    cat === 'academic & tech services' ||
     name.includes('ppt') ||
     name.includes('excel sheet') ||
     name.includes('coding')
   ) {
     return 'Academic & Tech Services';
   }
-  if (name.includes("lay's") || name.includes('lays')) return "Lay's Collection";
-  if (name.includes('kurkure') || name.includes('puffcorn')) return 'Kurkure Collection';
-  if (name.includes('bingo') || name.includes('achari') || name.includes('achaari') || name.includes('peri peri')) return 'Bingo Collection';
-  if (name.includes('soya')) return 'Soya Sticks';
-  if (name.includes('maggi')) return 'Packed Maggi';
-  if (name.includes('egg')) return 'Fresh Eggs';
-  if (name.includes('oreo')) return 'Oreo';
-  if (name.includes('parle') || name.includes('bourbon') || name.includes('bikis') || name.includes('tiger')) return 'Other Biscuits';
-  if (product.category === 'print_service' || name.includes('print') || name.includes('sheet') || name.includes('binding')) {
+  if (cat.includes('lay') || name.includes("lay's") || name.includes('lays')) return "Lay's Collection";
+  if (cat.includes('kurkure') || name.includes('kurkure') || name.includes('puffcorn')) return 'Kurkure Collection';
+  if (cat.includes('bingo') || name.includes('bingo') || name.includes('achari') || name.includes('achaari') || name.includes('peri peri')) return 'Bingo Collection';
+  if (cat.includes('soya') || name.includes('soya')) return 'Soya Sticks';
+  if (cat.includes('maggi') || name.includes('maggi')) return 'Packed Maggi';
+  if (cat.includes('egg') || name.includes('egg')) return 'Fresh Eggs';
+  if (cat.includes('oreo') || name.includes('oreo')) return 'Oreo';
+  if (
+    cat === 'print_service' ||
+    cat === 'print services' ||
+    name.includes('print') ||
+    name.includes('sheet') ||
+    name.includes('binding')
+  ) {
     return 'Print Services';
   }
+  if (cat.includes('biscuit') || name.includes('parle') || name.includes('bourbon') || name.includes('bikis') || name.includes('tiger')) return 'Other Biscuits';
   return 'Other Biscuits';
 }
 
