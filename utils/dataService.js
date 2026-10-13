@@ -114,13 +114,13 @@ export const INITIAL_PRODUCTS = [
   // 6. Fresh Eggs
   {
     id: '99999999-9999-9999-9999-999999990001',
-    name: 'Farm Fresh Eggs (Tray/Pack)',
+    name: 'Farm Fresh Eggs (Per Piece)',
     category: 'grocery',
     section_name: 'Fresh Eggs',
-    price: 48.0,
-    stock_count: 25,
+    price: 8.0,
+    stock_count: 60,
     image_url: '/egg.png',
-    description: 'Fresh protein-rich poultry eggs for midnight omelettes & boils.',
+    description: 'Fresh protein-rich poultry egg sold per piece for midnight boiled eggs, bhurji or omelettes.',
   },
 
   // 7. Oreo
@@ -208,20 +208,10 @@ export const INITIAL_PRODUCTS = [
     image_url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
     description: 'Premium JK 75 GSM bright white blank sheets for rough work and drafts.',
   },
-  {
-    id: '66666666-6666-6666-6666-666666660004',
-    name: 'Spiral Binding - Transparent Cover',
-    category: 'print_service',
-    section_name: 'Print Services',
-    price: 35.0,
-    stock_count: 30,
-    image_url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
-    description: 'Durable plastic spiral comb binding with front transparent sheet and back card.',
-  },
 ];
 
-const LOCAL_STORAGE_PRODUCTS_KEY = 'khaomojo_products_v3';
-const LOCAL_STORAGE_ORDERS_KEY = 'khaomojo_orders_v3';
+const LOCAL_STORAGE_PRODUCTS_KEY = 'khaomojo_products_v4';
+const LOCAL_STORAGE_ORDERS_KEY = 'khaomojo_orders_v4';
 
 // Initialize global memory storage for SSR and API routes
 globalThis.__khaomojo_products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
@@ -237,6 +227,27 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   } catch {
     broadcastChannel = null;
   }
+}
+
+/**
+ * Helper to purge retired items (e.g. Spiral Binding) and fix updated names (Eggs)
+ */
+function sanitizeProductList(list) {
+  if (!Array.isArray(list)) return [...INITIAL_PRODUCTS];
+  return list
+    .filter((p) => p && !p.name?.toLowerCase().includes('spiral binding') && p.id !== '66666666-6666-6666-6666-666666660004')
+    .map((p) => {
+      if (p.id === '99999999-9999-9999-9999-999999990001' || p.name?.includes('(Tray/Pack)')) {
+        return {
+          ...p,
+          name: 'Farm Fresh Eggs (Per Piece)',
+          price: 8.0,
+          stock_count: p.stock_count || 60,
+          description: 'Fresh protein-rich poultry egg sold per piece for midnight boiled eggs, bhurji or omelettes.',
+        };
+      }
+      return p;
+    });
 }
 
 /**
@@ -256,7 +267,7 @@ export async function fetchProducts() {
       if (error) {
         console.warn('Supabase fetch products error, falling back:', error.message);
       } else if (data && data.length > 0) {
-        return data;
+        return sanitizeProductList(data);
       }
     } catch (err) {
       console.warn('Supabase fetch exception:', err);
@@ -268,10 +279,18 @@ export async function fetchProducts() {
     const cached = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const sanitized = sanitizeProductList(JSON.parse(cached));
+        localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(sanitized));
+        return sanitized;
       } catch {
         // ignore parse error
       }
+    }
+    // Clean old storage versions
+    try {
+      localStorage.removeItem('khaomojo_products_v3');
+    } catch {
+      // ignore
     }
     // Initialize in localStorage
     localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
@@ -406,12 +425,23 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
         .from('order_items')
         .insert(orderItemsToInsert);
 
-      if (itemsError) throw itemsError;
-
-      return {
+      const createdOrderWithItems = {
         ...orderData,
-        items: orderItemsToInsert,
+        items: items.map((item) => ({
+          product_id: item.id,
+          product_name: item.name,
+          quantity: item.quantity,
+          unit_price: item.price,
+          print_file_url: item.printFileUrl || null,
+        })),
       };
+
+      // Broadcast to local tabs as well
+      if (typeof window !== 'undefined' && broadcastChannel) {
+        broadcastChannel.postMessage({ type: 'ORDER_CREATED', payload: createdOrderWithItems });
+      }
+
+      return createdOrderWithItems;
     } catch (err) {
       console.warn('Supabase createOrder error, utilizing client fallback:', err);
     }
@@ -592,12 +622,14 @@ export function subscribeToRealtime({ onOrderChange, onProductChange }) {
   let supabaseChannel = null;
   if (isSupabaseConfigured() && supabase) {
     try {
+      const channelId = `khaomojo-orders-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       supabaseChannel = supabase
-        .channel('khaomojo-live')
+        .channel(channelId)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'orders' },
           (payload) => {
+            console.log('[Supabase Realtime Order Event]:', payload.eventType, payload.new?.id);
             if (onOrderChange) onOrderChange(payload);
           }
         )
@@ -605,10 +637,17 @@ export function subscribeToRealtime({ onOrderChange, onProductChange }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'products' },
           (payload) => {
+            console.log('[Supabase Realtime Product Event]:', payload.eventType, payload.new?.name);
             if (onProductChange) onProductChange(payload);
           }
         )
-        .subscribe();
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`[Supabase Realtime] Successfully subscribed to orders channel (${channelId})`);
+          } else if (err) {
+            console.warn(`[Supabase Realtime] Subscription status: ${status}`, err);
+          }
+        });
     } catch (err) {
       console.warn('Failed to set up Supabase channel:', err);
     }

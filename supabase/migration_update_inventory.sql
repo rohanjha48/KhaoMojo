@@ -3,7 +3,7 @@
 -- Delete retired products and insert new section-based products
 -- ==========================================================
 
--- 1. DELETE retired products
+-- 1. DELETE retired products (including Spiral Binding)
 DELETE FROM order_items
 WHERE product_id IN (
     SELECT id FROM products 
@@ -14,8 +14,9 @@ WHERE product_id IN (
         'Lay''s Chile Limón',
         'Lay''s West Indies Hot ''n'' Sweet Chilli',
         'Marie Gold',
-        'Marie Gold Biscuit'
-    )
+        'Marie Gold Biscuit',
+        'Spiral Binding - Transparent Cover'
+    ) OR id = '66666666-6666-6666-6666-666666660004'
 );
 
 DELETE FROM products 
@@ -26,8 +27,9 @@ WHERE name IN (
     'Lay''s Chile Limón',
     'Lay''s West Indies Hot ''n'' Sweet Chilli',
     'Marie Gold',
-    'Marie Gold Biscuit'
-);
+    'Marie Gold Biscuit',
+    'Spiral Binding - Transparent Cover'
+) OR id = '66666666-6666-6666-6666-666666660004';
 
 -- 2. INSERT / UPSERT updated products
 INSERT INTO products (id, name, category, section_name, price, stock_count, image_url)
@@ -135,11 +137,11 @@ VALUES
     -- Fresh Eggs
     (
         '99999999-9999-9999-9999-999999990001',
-        'Farm Fresh Eggs (Tray/Pack)',
+        'Farm Fresh Eggs (Per Piece)',
         'grocery',
         'Fresh Eggs',
-        48.00,
-        25,
+        8.00,
+        60,
         '/egg.png'
     ),
 
@@ -219,14 +221,6 @@ VALUES
         15.00,
         60,
         'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80'
-    ),
-    (
-        '66666666-6666-6666-6666-666666660004',
-        'print_service',
-        'Print Services',
-        35.00,
-        30,
-        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80'
     )
 ON CONFLICT (id) DO UPDATE SET 
     name = EXCLUDED.name,

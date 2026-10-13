@@ -59,7 +59,7 @@ BEGIN
     WHERE id = NEW.product_id;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trg_deduct_product_stock ON order_items;
 CREATE TRIGGER trg_deduct_product_stock
@@ -67,46 +67,62 @@ AFTER INSERT ON order_items
 FOR EACH ROW
 EXECUTE FUNCTION deduct_product_stock();
 
--- 3. Row Level Security (RLS) Configuration
+-- 3. Grants & Row Level Security (RLS) Configuration
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON TABLE public.orders TO anon, authenticated;
+GRANT ALL ON TABLE public.order_items TO anon, authenticated;
+GRANT ALL ON TABLE public.products TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
 -- Product Policies
-CREATE POLICY "Allow public read access to products"
+CREATE POLICY "Allow anon and authenticated select products"
     ON products FOR SELECT
+    TO anon, authenticated
     USING (true);
 
-CREATE POLICY "Allow public insert and update on products"
+CREATE POLICY "Allow anon and authenticated manage products"
     ON products FOR ALL
+    TO anon, authenticated
     USING (true)
     WITH CHECK (true);
 
 -- Order Policies
-CREATE POLICY "Allow public read access to orders"
-    ON orders FOR SELECT
-    USING (true);
-
-CREATE POLICY "Allow public insert to orders"
+CREATE POLICY "Allow anon and authenticated insert to orders"
     ON orders FOR INSERT
+    TO anon, authenticated
     WITH CHECK (true);
 
-CREATE POLICY "Allow public update to orders"
+CREATE POLICY "Allow anon and authenticated select orders"
+    ON orders FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+CREATE POLICY "Allow anon and authenticated update orders"
     ON orders FOR UPDATE
+    TO anon, authenticated
     USING (true)
     WITH CHECK (true);
 
 -- Order Items Policies
-CREATE POLICY "Allow public read access to order_items"
-    ON order_items FOR SELECT
-    USING (true);
-
-CREATE POLICY "Allow public insert to order_items"
+CREATE POLICY "Allow anon and authenticated insert to order_items"
     ON order_items FOR INSERT
+    TO anon, authenticated
     WITH CHECK (true);
 
+CREATE POLICY "Allow anon and authenticated select order_items"
+    ON order_items FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
 -- 4. Supabase Realtime Setup
--- Enable Supabase Realtime for orders and products tables
+ALTER TABLE orders REPLICA IDENTITY FULL;
+ALTER TABLE order_items REPLICA IDENTITY FULL;
+ALTER TABLE products REPLICA IDENTITY FULL;
+
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -114,6 +130,13 @@ BEGIN
         WHERE pubname = 'supabase_realtime' AND tablename = 'orders'
     ) THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE orders;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'order_items'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE order_items;
     END IF;
 
     IF NOT EXISTS (

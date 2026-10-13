@@ -146,7 +146,11 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
         <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-2">
           <div>
             <span className="text-[10px] text-zinc-500 block uppercase font-mono tracking-wider">
-              {isPrintService && product.name.includes('Page') ? 'Per Page' : 'Price'}
+              {isPrintService && product.name.includes('Page')
+                ? 'Per Page'
+                : product.name.toLowerCase().includes('egg') || product.name.includes('Piece')
+                ? 'Per Piece'
+                : 'Price'}
             </span>
             <span className="text-lg font-bold font-mono text-emerald-400">
               ₹{Number(product.price).toFixed(0)}

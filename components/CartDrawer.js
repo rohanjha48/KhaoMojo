@@ -163,11 +163,11 @@ export default function CartDrawer({ onOrderSuccess }) {
               </div>
             ) : (
               <>
-                {/* Free delivery hostel perk banner */}
-                <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/40 via-zinc-900 to-emerald-950/20 border border-emerald-500/20 flex items-center gap-2.5 text-xs text-emerald-300">
-                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                {/* Pickup details banner */}
+                <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/40 via-zinc-900 to-amber-950/20 border border-amber-500/30 flex items-center gap-2.5 text-xs text-amber-300">
+                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>
-                    <strong>Hostel Night Shift:</strong> Estimated delivery 15-20 mins right to your room door!
+                    <strong>Hostel Night Shift:</strong> Pickup details: B Block room no 810 and C block room no 422.
                   </span>
                 </div>
 
@@ -269,11 +269,15 @@ export default function CartDrawer({ onOrderSuccess }) {
                 <form id="checkout-form" onSubmit={handleCheckout} className="pt-4 border-t border-zinc-800 space-y-3.5">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
-                      Delivery Details
+                      Pickup & Student Details
                     </h3>
-                    <span className="text-[11px] text-emerald-400 font-medium">
-                      Hostel Direct
+                    <span className="text-[11px] text-amber-400 font-medium">
+                      Hostel Pickup
                     </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+                    <strong>Pickup details:</strong> B Block room no 810 and C block room no 422.
                   </div>
 
                   {/* Customer Name */}
@@ -433,7 +437,7 @@ export default function CartDrawer({ onOrderSuccess }) {
 
               <div className="flex items-center justify-center gap-1.5 text-[10px] text-zinc-500">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Pay only when delivery guy reaches your room</span>
+                <span>Pay on pickup via Cash or UPI</span>
               </div>
             </div>
           )}

@@ -47,7 +47,7 @@ export default function Navbar({ forcedOverride, setForcedOverride }) {
         <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
           <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span className="font-semibold text-emerald-400">10:00 PM – 4:00 AM</span>
-          <span className="hidden sm:inline text-zinc-400">• Free Room Delivery across All Hostel Blocks</span>
+          <span className="hidden sm:inline text-amber-300">• Pickup details: B Block room no 810 and C block room no 422.</span>
         </div>
 
         <div className="flex items-center gap-3 text-xs shrink-0">

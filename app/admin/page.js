@@ -15,10 +15,10 @@ import {
   updateProductDetails, 
   subscribeToRealtime 
 } from '../../utils/dataService';
-import { isSupabaseConfigured } from '../../utils/supabase/client';
+import { isSupabaseConfigured, getSupabase } from '../../utils/supabase/client';
 import { playChime } from '../../utils/audio';
 
-const DEFAULT_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || 'mojo123';
+const DEFAULT_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || 'khaopiyoashkaro';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,6 +34,7 @@ export default function AdminPage() {
   const [orderFilter, setOrderFilter] = useState('all'); // 'all', 'pending', 'processing', 'delivered'
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [latestOrderAlert, setLatestOrderAlert] = useState(null);
+  const [hasDesktopNotificationPerm, setHasDesktopNotificationPerm] = useState(false);
 
   // Products State
   const [products, setProducts] = useState([]);
@@ -44,7 +45,10 @@ export default function AdminPage() {
   // Supabase connection state
   const [isLiveDB, setIsLiveDB] = useState(false);
 
-  // Check existing session
+  // Track seen order IDs to prevent duplicate alerts
+  const seenOrderIds = React.useRef(new Set());
+
+  // Check existing session & notification permission
   useEffect(() => {
     setIsLiveDB(isSupabaseConfigured());
     if (typeof window !== 'undefined') {
@@ -52,8 +56,47 @@ export default function AdminPage() {
       if (savedAuth === 'true') {
         setIsAuthenticated(true);
       }
+      if ('Notification' in window) {
+        setHasDesktopNotificationPerm(Notification.permission === 'granted');
+      }
     }
   }, []);
+
+  // Request browser notification permission
+  const requestDesktopNotifications = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setHasDesktopNotificationPerm(perm === 'granted');
+        if (perm === 'granted') {
+          triggerOrderChime();
+          new Notification('KhaoMojo Dispatch Active 🚀', {
+            body: 'You will receive instant desktop alerts the exact second an order is placed!',
+            icon: '/favicon.ico',
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to request notification permission:', err);
+      }
+    }
+  };
+
+  // Trigger high-priority audio chime using HTML5 Audio (new Audio) + Synthesizer fallback
+  const triggerOrderChime = () => {
+    try {
+      const audio = new Audio('/sounds/notification.mp3');
+      audio.volume = 1.0;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('HTML5 Audio playback caught, falling back to Web Audio synth:', err);
+          playChime('new-order');
+        });
+      }
+    } catch {
+      playChime('new-order');
+    }
+  };
 
   // Fetch orders and products
   const loadOrders = async () => {
@@ -61,6 +104,12 @@ export default function AdminPage() {
       setOrdersLoading(true);
       const data = await fetchOrders();
       setOrders(data);
+      // Populate seen orders
+      if (Array.isArray(data)) {
+        data.forEach((o) => {
+          if (o?.id) seenOrderIds.current.add(o.id);
+        });
+      }
     } catch (err) {
       console.error('Failed to load orders:', err);
     } finally {
@@ -80,32 +129,96 @@ export default function AdminPage() {
     }
   };
 
+  // Dedicated handler for instant new order dispatch
+  const handleIncomingOrder = (newRecord) => {
+    if (!newRecord?.id) return;
+    if (seenOrderIds.current.has(newRecord.id)) return;
+    seenOrderIds.current.add(newRecord.id);
+
+    // 1. Play audio chime the exact second order is received
+    if (soundEnabled) {
+      triggerOrderChime();
+    }
+
+    // 2. Trigger high-visibility toast alert
+    setLatestOrderAlert(newRecord);
+    setTimeout(() => {
+      setLatestOrderAlert((curr) => (curr?.id === newRecord.id ? null : curr));
+    }, 10000);
+
+    // 3. Desktop native notification
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('🚨 New KhaoMojo Order!', {
+          body: `Room ${newRecord.room_number || 'N/A'} • ₹${newRecord.total_amount || 0} • ${newRecord.customer_name || 'Student'}`,
+          icon: '/favicon.ico',
+        });
+      } catch (err) {
+        console.warn('Desktop notification error:', err);
+      }
+    }
+
+    // 4. Prepend to list
+    setOrders((prev) => {
+      const exists = prev.some((o) => o.id === newRecord.id);
+      if (exists) return prev;
+      return [{ ...newRecord, items: newRecord.items || [] }, ...prev];
+    });
+
+    // 5. Hydrate full items from DB
+    loadOrders();
+  };
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
     loadOrders();
     loadProducts();
 
-    // Subscribe to realtime orders and products updates
-    const unsubscribe = subscribeToRealtime({
+    const supabase = getSupabase();
+    let supabaseChannel = null;
+
+    // 1. Direct Supabase Realtime channel subscription to orders table
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const channelId = `admin-live-orders-${Date.now()}`;
+        supabaseChannel = supabase
+          .channel(channelId)
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'orders' },
+            (payload) => {
+              console.log('[Supabase Realtime INSERT on orders]:', payload.new);
+              handleIncomingOrder(payload.new);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'orders' },
+            (payload) => {
+              const updated = payload.new;
+              setOrders((prev) =>
+                prev.map((o) => (o.id === updated.id ? { ...o, ...updated, items: o.items || [] } : o))
+              );
+            }
+          )
+          .subscribe((status, err) => {
+            console.log(`[Admin Supabase Channel Status]: ${status}`, err || '');
+          });
+      } catch (err) {
+        console.warn('Failed to subscribe direct Supabase channel in admin:', err);
+      }
+    }
+
+    // 2. Also subscribe via dataService (handles local fallback & broadcast sync)
+    const unsubscribeBroadcast = subscribeToRealtime({
       onOrderChange: (payload) => {
         const { eventType, new: newRecord } = payload;
-
-        if (eventType === 'INSERT') {
-          // Play chime sound
-          if (soundEnabled) {
-            playChime('new-order');
-          }
-
-          // Show floating alert
-          setLatestOrderAlert(newRecord);
-          setTimeout(() => setLatestOrderAlert(null), 8000);
-
-          // Add to top of list
-          setOrders((prev) => [newRecord, ...prev]);
-        } else if (eventType === 'UPDATE') {
+        if (eventType === 'INSERT' && newRecord) {
+          handleIncomingOrder(newRecord);
+        } else if (eventType === 'UPDATE' && newRecord) {
           setOrders((prev) =>
-            prev.map((o) => (o.id === newRecord.id ? { ...o, ...newRecord } : o))
+            prev.map((o) => (o.id === newRecord.id ? { ...o, ...newRecord, items: o.items || [] } : o))
           );
         } else {
           loadOrders();
@@ -123,19 +236,28 @@ export default function AdminPage() {
     });
 
     return () => {
-      unsubscribe();
+      if (supabaseChannel && supabase) {
+        supabase.removeChannel(supabaseChannel);
+      }
+      unsubscribeBroadcast();
     };
   }, [isAuthenticated, soundEnabled]);
 
-  // Handle PIN Login
+  // Handle PIN Login (strictly requires khaopiyoashkaro or NEXT_PUBLIC_ADMIN_PIN)
   const handleLogin = (e) => {
     e.preventDefault();
-    if (pinInput === DEFAULT_PIN || pinInput === 'admin' || pinInput === '1234') {
+    if (pinInput === DEFAULT_PIN || pinInput === 'khaopiyoashkaro') {
       setIsAuthenticated(true);
       sessionStorage.setItem('khaomojo_admin_auth', 'true');
       setPinError('');
+      // Prime audio permissions on user click
+      try {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.volume = 0.01;
+        audio.play().then(() => audio.pause()).catch(() => {});
+      } catch {}
     } else {
-      setPinError(`Incorrect PIN. Hint: Default PIN is "${DEFAULT_PIN}"`);
+      setPinError('Incorrect admin password. Please try again.');
     }
   };
 
@@ -224,14 +346,14 @@ export default function AdminPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                Enter Store Owner PIN
+                Enter Admin Password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-3 w-4 h-4 text-zinc-500" />
                 <input
                   type="password"
                   autoFocus
-                  placeholder="Enter PIN (Default: mojo123)"
+                  placeholder="Enter Admin Password"
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-zinc-950 border border-zinc-700 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition font-mono tracking-wider"
@@ -297,18 +419,42 @@ export default function AdminPage() {
           </div>
 
           {/* Right Header Controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Database indicator */}
             <span
-              className={`hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono border ${
+              className={`hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono border ${
                 isLiveDB
                   ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
                   : 'bg-zinc-800 text-zinc-300 border-zinc-700'
               }`}
             >
               <Database className="w-3 h-3" />
-              {isLiveDB ? 'Supabase Realtime Active' : 'Demo DB Mode'}
+              {isLiveDB ? 'Supabase Realtime' : 'Demo DB Mode'}
             </span>
+
+            {/* Desktop Alerts Request Button */}
+            <button
+              onClick={requestDesktopNotifications}
+              className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition ${
+                hasDesktopNotificationPerm
+                  ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-400'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+              }`}
+              title={hasDesktopNotificationPerm ? 'Desktop Notifications Active' : 'Enable Desktop Notifications'}
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span className="text-[11px]">{hasDesktopNotificationPerm ? 'Alerts ON' : 'Enable Alerts'}</span>
+            </button>
+
+            {/* Test Audio Chime */}
+            <button
+              onClick={triggerOrderChime}
+              className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:text-emerald-400 transition flex items-center gap-1.5"
+              title="Test audio chime now"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-[11px] hidden md:inline">Test Chime</span>
+            </button>
 
             {/* Audio Toggle */}
             <button
@@ -320,7 +466,7 @@ export default function AdminPage() {
               }`}
               title={soundEnabled ? 'Order sound alert ON' : 'Order sound alert MUTED'}
             >
-              <Volume2 className="w-4 h-4" />
+              <Volume2 className={`w-4 h-4 ${!soundEnabled ? 'opacity-40 line-through' : ''}`} />
             </button>
 
             {/* Manual Refresh */}
@@ -347,25 +493,48 @@ export default function AdminPage() {
         </div>
       </header>
 
-      {/* Floating New Order Banner */}
+      {/* Floating New Order Alert Toast */}
       {latestOrderAlert && (
-        <div className="fixed top-20 right-6 z-50 animate-bounce">
-          <div className="p-4 rounded-2xl bg-emerald-500 text-zinc-950 font-bold shadow-2xl flex items-center gap-3 border border-emerald-400">
-            <Bell className="w-6 h-6 animate-spin" />
-            <div>
-              <div className="text-xs uppercase tracking-wider font-black">
-                🚨 New Order Received!
+        <div className="fixed top-20 right-4 sm:right-6 z-50 animate-in slide-in-from-top-4 duration-300">
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-zinc-950 font-bold shadow-2xl flex items-center gap-3.5 border-2 border-emerald-300 ring-4 ring-emerald-500/20 max-w-md">
+            <div className="h-10 w-10 rounded-xl bg-black/15 flex items-center justify-center shrink-0">
+              <Bell className="w-5 h-5 animate-bounce" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wider font-black px-1.5 py-0.5 rounded bg-black/20">
+                  LIVE ORDER
+                </span>
+                <span className="text-xs text-zinc-900 font-mono">
+                  Room {latestOrderAlert.room_number || 'N/A'}
+                </span>
               </div>
-              <div className="text-sm">
-                Room {latestOrderAlert.room_number} • ₹{latestOrderAlert.total_amount}
+              <div className="text-sm font-extrabold truncate mt-0.5">
+                Total: ₹{Number(latestOrderAlert.total_amount || 0).toFixed(0)}
+              </div>
+              <div className="text-xs font-medium text-zinc-900/80 truncate">
+                {latestOrderAlert.customer_name ? `${latestOrderAlert.customer_name} • ` : ''}
+                {latestOrderAlert.phone_number || 'Cash/UPI on Pickup'}
               </div>
             </div>
-            <button
-              onClick={() => setLatestOrderAlert(null)}
-              className="p-1 rounded-lg hover:bg-black/10 transition ml-2"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setOrderFilter('all');
+                  setActiveTab('orders');
+                  setLatestOrderAlert(null);
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-black/20 hover:bg-black/30 text-xs font-bold transition shrink-0"
+              >
+                View
+              </button>
+              <button
+                onClick={() => setLatestOrderAlert(null)}
+                className="p-1 rounded-lg hover:bg-black/20 transition shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

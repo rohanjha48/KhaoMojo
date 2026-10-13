@@ -108,11 +108,11 @@ VALUES
     -- 6. Fresh Eggs
     (
         '99999999-9999-9999-9999-999999990001',
-        'Farm Fresh Eggs (Tray/Pack)',
+        'Farm Fresh Eggs (Per Piece)',
         'grocery',
         'Fresh Eggs',
-        48.00,
-        25,
+        8.00,
+        60,
         '/egg.png'
     ),
 
@@ -192,15 +192,6 @@ VALUES
         15.00,
         60,
         'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80'
-    ),
-    (
-        '66666666-6666-6666-6666-666666660004',
-        'Spiral Binding - Transparent Cover',
-        'print_service',
-        'Print Services',
-        35.00,
-        30,
-        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80'
     )
 ON CONFLICT (id) DO UPDATE SET 
     name = EXCLUDED.name,

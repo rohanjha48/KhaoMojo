@@ -1,10 +1,19 @@
 /**
- * Zero-dependency Web Audio synthesizer for sleek UI feedback
+ * Zero-dependency Web Audio synthesizer & HTML5 Audio player for UI feedback
  */
 
-export function playChime(type = 'success') {
-  if (typeof window === 'undefined') return;
+export function playAudioElement(audioSrc = '/sounds/notification.mp3') {
+  if (typeof window === 'undefined') return Promise.reject(new Error('SSR'));
+  try {
+    const audio = new Audio(audioSrc);
+    audio.volume = 0.9;
+    return audio.play();
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
 
+function playSynthesizedChime(type) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
@@ -19,13 +28,13 @@ export function playChime(type = 'success') {
       osc.frequency.setValueAtTime(660, ctx.currentTime + 0.08);
       osc.frequency.setValueAtTime(880, ctx.currentTime + 0.16);
 
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.4);
+      osc.stop(ctx.currentTime + 0.45);
     } else {
       // Pleasant melodic chime for checkout success
       const now = ctx.currentTime;
@@ -51,4 +60,16 @@ export function playChime(type = 'success') {
   } catch {
     // Silently continue if autoplay policy restricts
   }
+}
+
+export function playChime(type = 'success') {
+  if (typeof window === 'undefined') return;
+
+  // Try HTML5 Audio element first (new Audio)
+  const soundFile = type === 'new-order' ? '/sounds/notification.mp3' : '/sounds/notification.wav';
+  playAudioElement(soundFile)
+    .catch(() => {
+      // Fallback to Web Audio synthesizer if autoplay was restricted or file missing
+      playSynthesizedChime(type);
+    });
 }

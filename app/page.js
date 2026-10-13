@@ -65,7 +65,7 @@ export const SECTIONS_CONFIG = [
   },
   {
     name: 'Print Services',
-    tagline: 'Urgent assignment prints, lab reports & spiral binding delivered to your room',
+    tagline: 'Urgent assignment prints & lab reports ready for hostel pickup',
     badge: '2 AM Fast Printout',
     badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
   },
@@ -388,13 +388,13 @@ export default function StorefrontPage() {
       {/* Footer */}
       <footer className="border-t border-zinc-800/80 bg-zinc-950 py-8 px-4 text-center text-xs text-zinc-500 space-y-2 mt-12">
         <p className="font-semibold text-zinc-400">
-          KhaoMojo • Late-Night Hostel Delivery & Printing Service
+          KhaoMojo • Late-Night Hostel Pickup & Printing Service
         </p>
         <p>
-          Operational 10:00 PM – 4:00 AM • Serving Hostel Blocks A, B, C, BH-1, GH-1
+          Operational 10:00 PM – 4:00 AM
         </p>
-        <p className="text-[11px] text-zinc-400 font-mono">
-          Cash on Delivery & UPI on Delivery accepted at your doorstep.
+        <p className="text-amber-400 font-semibold text-xs sm:text-sm">
+          Pickup details: B Block room no 810 and C block room no 422.
         </p>
       </footer>
 

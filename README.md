@@ -22,7 +22,7 @@
   - Uploaded directly to the Supabase Storage `print-files` bucket.
   - Attached document download link appears directly inside the Admin Order Card.
 - **Protected Admin Dashboard (`/admin`)**:
-  - PIN-protected dispatch portal (Default PIN: `mojo123`).
+  - PIN-protected dispatch portal (Default PIN: `khaopiyoashkaro`).
   - Real-time order listener (`.channel()`) with instant visual banner and sound chime when orders arrive.
   - Action buttons to transition order status (`pending` ➔ `processing` ➔ `delivered`).
   - Live Inventory Manager table to adjust prices and restock (+10, +25, custom) on the fly.
@@ -33,10 +33,10 @@
     3. **Bingo Collection** (2 items: Achaari Masti, Very Peri Peri)
     4. **Soya Sticks** (1 item: Soya Sticks Classic)
     5. **Packed Maggi** (1 item: Maggi 2-Minute Noodles)
-    6. **Fresh Eggs** (1 item: Farm Fresh Eggs Tray/Pack)
+    6. **Fresh Eggs** (1 item: Farm Fresh Eggs Per Piece)
     7. **Oreo** (1 item: Oreo Vanilla Cream Biscuits)
     8. **Other Biscuits** (4 items: Parle-G, Bourbon, Milk Bikis, Tiger)
-    9. **Print Services** (4 items: B&W Printouts, Color Printouts, A4 Sheets, Spiral Binding)
+    9. **Print Services** (3 items: B&W Printouts, Color Printouts, Blank A4 Sheets)
   - All product images are served locally from `/public` matching the scanned filenames without placeholders.
   - Quick-jump filter tabs allow switching between "All Collections" and individual category sections.
 - **Inventory Migration & Retired Item Deletion**:
@@ -68,7 +68,7 @@ The project is already installed and set up. To run locally:
 pnpm dev
 
 # App runs on http://localhost:3000
-# Admin portal runs on http://localhost:3000/admin (Default PIN: mojo123)
+# Admin portal runs on http://localhost:3000/admin (Default PIN: khaopiyoashkaro)
 ```
 
 ### 2. Setting Up Supabase (Database & Realtime)
@@ -80,7 +80,7 @@ pnpm dev
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-NEXT_PUBLIC_ADMIN_PIN=mojo123
+NEXT_PUBLIC_ADMIN_PIN=khaopiyoashkaro
 ```
 
 4. Go to the **SQL Editor** in your Supabase dashboard and execute the scripts located in the `supabase/` directory:
@@ -127,7 +127,7 @@ NEXT_PUBLIC_ADMIN_PIN=mojo123
 ## 🔐 Admin Dashboard Details
 
 - **Route**: `http://localhost:3000/admin`
-- **Default PIN**: `mojo123`
+- **Default PIN**: `khaopiyoashkaro`
 - **Features**:
   - Live order cards with customer name, hostel room number (e.g. `Block B - Room 304`), and phone number.
   - Direct download links for student printout assignments.
