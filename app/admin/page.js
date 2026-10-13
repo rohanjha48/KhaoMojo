@@ -888,9 +888,13 @@ export default function AdminPage() {
                           <div className="flex items-center gap-2.5">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={p.image_url || '/placeholder.png'}
+                              src={p.image_url ? encodeURI(p.image_url) : '/placeholder.png'}
                               alt={p.name}
                               className="h-9 w-9 rounded-lg object-cover bg-zinc-950 shrink-0 border border-zinc-800"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = '/placeholder.png';
+                              }}
                             />
                             <div>
                               <div className="font-semibold text-white">{p.name}</div>

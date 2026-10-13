@@ -117,16 +117,15 @@ export default function ProductCard({ product, isClosed, onOpenPrintModal }) {
       <div className="relative aspect-4/3 w-full bg-zinc-950 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={product.image_url || '/placeholder.png'}
+          src={product.image_url ? encodeURI(product.image_url) : '/placeholder.png'}
           alt={product.name}
-          className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+          className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
             isOutOfStock ? 'grayscale opacity-50' : ''
           }`}
           loading="lazy"
           onError={(e) => {
             e.currentTarget.onerror = null;
-            e.currentTarget.src =
-              'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&auto=format&fit=crop&q=80';
+            e.currentTarget.src = '/placeholder.png';
           }}
         />
 

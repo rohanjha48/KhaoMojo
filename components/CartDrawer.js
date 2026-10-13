@@ -183,9 +183,13 @@ export default function CartDrawer({ onOrderSuccess }) {
                           {/* Item Thumbnail */}
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={item.image_url || '/placeholder.png'}
+                            src={item.image_url ? encodeURI(item.image_url) : '/placeholder.png'}
                             alt={item.name}
                             className="h-12 w-12 rounded-xl object-cover bg-zinc-950 shrink-0 border border-zinc-800"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = '/placeholder.png';
+                            }}
                           />
                           <div className="min-w-0">
                             <h4 className="text-sm font-semibold text-white truncate">
