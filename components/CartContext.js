@@ -7,38 +7,32 @@ const CartContext = createContext(null);
 const CART_STORAGE_KEY = 'khaomojo_cart_items_v1';
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  // Load saved cart from localStorage on mount
-  useEffect(() => {
-    setIsMounted(true);
+  const [items, setItems] = useState(() => {
+    if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem(CART_STORAGE_KEY);
-      if (saved) {
-        setItems(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.warn('Failed to parse cart items:', e);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
     }
-  }, []);
+  });
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Save cart changes to localStorage
   useEffect(() => {
-    if (!isMounted) return;
+    if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
     } catch (e) {
       console.warn('Failed to save cart items:', e);
     }
-  }, [items, isMounted]);
+  }, [items]);
 
   /**
    * Add a product to the cart
    */
   const addToCart = (product, options = {}) => {
-    const { printFileUrl, printFileName, quantity = 1 } = options;
+    const { printFileUrl, printFileName, quantity = 1, openCart = false } = options;
 
     setItems((prevItems) => {
       // If it's a print service with a file, we create a distinct entry per uploaded file
@@ -83,8 +77,9 @@ export function CartProvider({ children }) {
       ];
     });
 
-    // Auto-open cart sidebar for smooth UX feedback
-    setIsCartOpen(true);
+    if (openCart) {
+      setIsCartOpen(true);
+    }
   };
 
   /**

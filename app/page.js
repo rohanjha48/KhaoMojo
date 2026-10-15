@@ -7,72 +7,79 @@ import PrintUploadModal from '../components/PrintUploadModal';
 import CartDrawer from '../components/CartDrawer';
 import OrderSuccessModal from '../components/OrderSuccessModal';
 import ClosedNotice from '../components/ClosedNotice';
-import { fetchProducts, subscribeToRealtime } from '../utils/dataService';
-import { isStoreOpen } from '../utils/operatingHours';
-import { 
-  Search, Flame, Printer, Cookie, ShoppingBag, 
-  Sparkles, Clock, RefreshCw, Layers, CheckCircle2 
-} from 'lucide-react';
+import FloatingCartBar from '../components/FloatingCartBar';
+import { fetchProducts, fetchStoreSettings, subscribeToRealtime } from '../utils/dataService';
+import { Search, X, Sparkles, MapPin, Clock } from 'lucide-react';
 
 export const SECTIONS_CONFIG = [
   {
     name: "Lay's Collection",
+    shortName: "Lay's",
     tagline: 'Crispy, classic & tangy flavors of Lay’s potato chips',
-    badge: '4 Flavors Available',
+    badge: '4 Flavors',
     badgeColor: 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10',
   },
   {
     name: 'Kurkure Collection',
-    tagline: 'Tedha Hai Par Mera Hai — Crunchy Masala Munch & soft Puffcorn',
-    badge: 'Hostel Favorite',
+    shortName: 'Kurkure',
+    tagline: 'Tedha Hai Par Mera Hai — Masala Munch & Puffcorn',
+    badge: 'Hostel Fav',
     badgeColor: 'border-orange-500/30 text-orange-400 bg-orange-500/10',
   },
   {
     name: 'Bingo Collection',
-    tagline: 'Tangy Achaari Masti triangles & fiery Very Peri Peri crunch',
+    shortName: 'Bingo',
+    tagline: 'Tangy Achaari Masti triangles & fiery Peri Peri',
     badge: 'Spicy Tang',
     badgeColor: 'border-red-500/30 text-red-400 bg-red-500/10',
   },
   {
     name: 'Soya Sticks',
-    tagline: 'Chatpata spiced crispy roasted protein sticks for late night crunch',
+    shortName: 'Soya Sticks',
+    tagline: 'Chatpata spiced crispy roasted protein sticks',
     badge: 'Desi Crunch',
     badgeColor: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
   },
   {
     name: 'Packed Maggi',
-    tagline: 'The undisputed 2 AM hostel survival meal with authentic masala tastemaker',
+    shortName: 'Maggi',
+    tagline: 'The undisputed 2 AM hostel survival meal',
     badge: 'Essential',
     badgeColor: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
   },
   {
     name: 'Fresh Eggs',
-    tagline: 'Farm fresh poultry eggs for quick midnight omelettes, bhurji & boils',
+    shortName: 'Eggs',
+    tagline: 'Farm fresh poultry eggs for midnight omelettes',
     badge: 'High Protein',
     badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
   },
   {
     name: 'Oreo',
-    tagline: 'Rich dark cocoa biscuit cookies sandwiched with smooth vanilla cream',
-    badge: 'Midnight Sweet',
+    shortName: 'Oreo',
+    tagline: 'Dark cocoa biscuit cookies with vanilla cream',
+    badge: 'Sweet Tooth',
     badgeColor: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
   },
   {
     name: 'Other Biscuits',
-    tagline: 'Chai companions: Parle-G, Bourbon, Milk Bikis & Tiger glucose biscuits',
+    shortName: 'Biscuits',
+    tagline: 'Chai companions: Parle-G, Bourbon & Milk Bikis',
     badge: 'Chai Dunkers',
     badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
   },
   {
     name: 'Print Services',
-    tagline: 'Urgent assignment prints & lab reports ready for hostel pickup',
-    badge: '2 AM Fast Printout',
+    shortName: 'Print Services',
+    tagline: 'Urgent assignment prints & lab reports ready for pickup',
+    badge: '2 AM Fast Print',
     badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
   },
   {
     name: 'Academic & Tech Services',
-    tagline: 'Custom PPTs, lab Excel sheets & coding projects for college deadlines',
-    badge: 'Tech & PPTs',
+    shortName: 'Tech & PPTs',
+    tagline: 'Custom PPTs, lab Excel sheets & coding projects for deadlines',
+    badge: 'College Aid',
     badgeColor: 'border-violet-500/30 text-violet-400 bg-violet-500/10',
   },
 ];
@@ -117,45 +124,31 @@ export default function StorefrontPage() {
   const [selectedSection, setSelectedSection] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Operating hours override for tester convenience (null = use actual time)
-  const [forcedOverride, setForcedOverride] = useState(null);
-  
   // Modals state
   const [activePrintProduct, setActivePrintProduct] = useState(null);
   const [lastPlacedOrder, setLastPlacedOrder] = useState(null);
 
-  // Check store hours inside useEffect for client runtime evaluation
+  // Store open status strictly read from store_settings table
   const [storeIsOpen, setStoreIsOpen] = useState(true);
 
-  useEffect(() => {
-    setStoreIsOpen(isStoreOpen(forcedOverride));
-    const timer = setInterval(() => {
-      setStoreIsOpen(isStoreOpen(forcedOverride));
-    }, 30000);
-    return () => clearInterval(timer);
-  }, [forcedOverride]);
-
-  // Load products & set up realtime updates
+  // Load store open status from store_settings table & subscribe to realtime changes
   useEffect(() => {
     let isMounted = true;
 
-    async function loadData() {
+    async function loadSettings() {
       try {
-        setLoading(true);
-        const data = await fetchProducts();
-        if (isMounted) {
-          setProducts(data);
+        const settings = await fetchStoreSettings();
+        if (isMounted && settings) {
+          setStoreIsOpen(Boolean(settings.is_open));
         }
       } catch (err) {
-        console.error('Failed to load products:', err);
-      } finally {
-        if (isMounted) setLoading(false);
+        console.error('Failed to load store settings:', err);
       }
     }
 
-    loadData();
+    loadSettings();
 
-    // Subscribe to realtime product updates (e.g. stock deduction when orders placed)
+    // Subscribe to realtime product and store_settings updates
     const unsubscribe = subscribeToRealtime({
       onProductChange: (payload) => {
         if (payload.new) {
@@ -175,11 +168,45 @@ export default function StorefrontPage() {
           if (isMounted) setProducts(refreshed);
         });
       },
+      onStoreSettingsChange: (payload) => {
+        if (payload?.new && typeof payload.new.is_open === 'boolean') {
+          if (isMounted) setStoreIsOpen(payload.new.is_open);
+        } else {
+          fetchStoreSettings().then((refreshed) => {
+            if (isMounted && refreshed) setStoreIsOpen(Boolean(refreshed.is_open));
+          });
+        }
+      },
     });
 
     return () => {
       isMounted = false;
       unsubscribe();
+    };
+  }, []);
+
+  // Load products
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadData() {
+      try {
+        setLoading(true);
+        const data = await fetchProducts();
+        if (isMounted) {
+          setProducts(data);
+        }
+      } catch (err) {
+        console.error('Failed to load products:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
     };
   }, []);
 
@@ -203,112 +230,95 @@ export default function StorefrontPage() {
       products: sectionProducts,
     };
   }).filter((sec) => {
-    // If a specific section is selected, only show that section
     if (selectedSection !== 'all' && sec.name !== selectedSection) {
       return false;
     }
-    // Only show sections that have products matching search query
     return sec.products.length > 0;
   });
 
-  const totalFilteredCount = groupedSections.reduce(
-    (sum, sec) => sum + sec.products.length,
-    0
-  );
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-zinc-950">
-      {/* Top Navbar */}
-      <Navbar forcedOverride={forcedOverride} setForcedOverride={setForcedOverride} />
+    <div className="min-h-screen bg-[#141210] text-[#F5F2EB] flex flex-col font-sans selection:bg-[#FF5500] selection:text-white">
+      {/* 1. Compact Top Bar */}
+      <Navbar storeIsOpen={storeIsOpen} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
-        {/* If Store is Closed, render Closed Notice prominently */}
-        {!storeIsOpen && (
-          <ClosedNotice onForceOpen={() => setForcedOverride(true)} />
-        )}
+      {/* 2. Main Container: max-w-5xl mx-auto px-3 sm:px-6 pb-28 pt-3 */}
+      <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 pb-28 pt-3 space-y-3">
+        {/* If Store is Closed, render compact live Closed Notice */}
+        {!storeIsOpen && <ClosedNotice />}
 
-        {/* Hero Section */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800 p-6 sm:p-10 shadow-2xl">
-          {/* Neon ambient blobs */}
-          <div className="absolute top-0 right-10 h-64 w-64 bg-emerald-500/10 blur-3xl rounded-full pointer-events-none" />
-          <div className="absolute bottom-0 left-10 h-64 w-64 bg-cyan-500/10 blur-3xl rounded-full pointer-events-none" />
-
-          <div className="relative max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-4">
-              <Clock className="w-3.5 h-3.5 animate-spin-slow" />
-              <span>Hostel Late-Night Service • 10:00 PM – 4:00 AM</span>
-            </div>
-
-            <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-              Midnight Hunger & <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
-                Last-Minute Assignment Prints.
-              </span>
-            </h1>
-
-            <p className="mt-3 text-zinc-400 text-sm sm:text-base leading-relaxed max-w-xl">
-              Order Lay’s, Kurkure, packed Maggi, Oreo, biscuits, and get your PDF assignments printed and delivered straight to your hostel room in 15 minutes.
-            </p>
-
-            {/* Search Bar */}
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 max-w-lg">
-              <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-500" />
-                <input
-                  type="text"
-                  placeholder="Search Lay's, Kurkure, Maggi, Oreo, Printout..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-zinc-950/80 border border-zinc-700/80 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-400 transition"
-                />
-              </div>
-
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="px-3 py-2 text-xs font-semibold text-zinc-400 hover:text-white rounded-xl bg-zinc-800 transition"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
+        {/* Compact Utility Strip: Pickup Info + Instant Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+          {/* Hostel Pickup Info */}
+          <div className="flex items-center gap-2 text-xs text-[#A8A29E] bg-[#1F1C18] border border-[#2E2924] rounded-xl px-3 py-1.5 shrink-0">
+            <MapPin className="w-3.5 h-3.5 text-[#FF5500] shrink-0" />
+            <span className="truncate">
+              Pickup: <strong className="text-[#F5F2EB]">B Block 810</strong> & <strong className="text-[#F5F2EB]">C Block 422</strong>
+            </span>
           </div>
-        </section>
 
-        {/* Section Quick Jump Filter Bar */}
-        <section className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+          {/* Quick Commerce Search Input */}
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-[#A8A29E]" />
+            <input
+              type="text"
+              placeholder="Search snacks, Maggi, prints..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-[#1F1C18] border border-[#2E2924] text-xs sm:text-sm text-[#F5F2EB] placeholder-[#A8A29E]/60 focus:outline-none focus:border-[#FF5500] transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-2 p-0.5 text-[#A8A29E] hover:text-[#F5F2EB] rounded"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 3. Sticky Category Bar: Horizontal scrolling pills */}
+        <div className="sticky top-[52px] z-20 -mx-3 sm:-mx-6 px-3 sm:px-6 py-2 bg-[#141210]/95 backdrop-blur-md border-b border-[#2E2924]/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          {/* "All" Pill */}
           <button
+            type="button"
             onClick={() => setSelectedSection('all')}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all shrink-0 border ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs shrink-0 transition-colors cursor-pointer select-none ${
               selectedSection === 'all'
-                ? 'bg-emerald-500 text-zinc-950 border-emerald-400 shadow-md shadow-emerald-500/20 scale-[1.02]'
-                : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                ? 'bg-[#F5F2EB] text-[#141210] font-semibold shadow-sm'
+                : 'bg-[#1F1C18] text-[#A8A29E] hover:text-[#F5F2EB] border border-[#2E2924]'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>All Collections</span>
+            <Sparkles className="w-3 h-3" />
+            <span>All Snacks</span>
+            <span className="font-mono text-[10px] tabular-nums opacity-80">
+              {products.length}
+            </span>
           </button>
 
+          {/* Category Pills */}
           {SECTIONS_CONFIG.map((sec) => {
             const isSelected = selectedSection === sec.name;
             const count = products.filter((p) => getProductSection(p) === sec.name).length;
+            if (count === 0 && !loading) return null;
 
             return (
               <button
                 key={sec.name}
+                type="button"
                 onClick={() => setSelectedSection(sec.name)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all shrink-0 border ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs shrink-0 transition-colors cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-emerald-500 text-zinc-950 border-emerald-400 shadow-md shadow-emerald-500/20 scale-[1.02]'
-                    : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                    ? 'bg-[#F5F2EB] text-[#141210] font-semibold shadow-sm'
+                    : 'bg-[#1F1C18] text-[#A8A29E] hover:text-[#F5F2EB] border border-[#2E2924]'
                 }`}
               >
-                <span>{sec.name}</span>
+                <span>{sec.shortName || sec.name}</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                    isSelected
-                      ? 'bg-zinc-950 text-emerald-400'
-                      : 'bg-zinc-800 text-zinc-400'
+                  className={`font-mono text-[10px] tabular-nums ${
+                    isSelected ? 'text-[#141210] opacity-80' : 'text-[#A8A29E]'
                   }`}
                 >
                   {count}
@@ -316,26 +326,27 @@ export default function StorefrontPage() {
               </button>
             );
           })}
-        </section>
+        </div>
 
-        {/* Section-Based Product Display */}
-        <div className="space-y-12">
+        {/* 4. Dense Mobile Grid & Product Display */}
+        <div className="space-y-6 pt-1">
           {loading ? (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {[1, 2].map((s) => (
-                <div key={s} className="space-y-4">
-                  <div className="h-8 w-48 bg-zinc-900 rounded-lg animate-pulse" />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div key={s} className="space-y-3">
+                  <div className="h-6 w-36 bg-[#1F1C18] rounded-md animate-pulse" />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-4">
                     {[1, 2, 3, 4].map((n) => (
                       <div
                         key={n}
-                        className="h-72 rounded-2xl bg-zinc-900/50 border border-zinc-800 animate-pulse p-4 flex flex-col justify-between"
+                        className="bg-[#1F1C18] border border-[#2E2924] rounded-2xl p-2.5 flex flex-col justify-between animate-pulse h-64"
                       >
-                        <div className="h-40 w-full bg-zinc-800/50 rounded-xl" />
-                        <div className="space-y-2">
-                          <div className="h-4 w-3/4 bg-zinc-800/60 rounded" />
-                          <div className="h-3 w-1/2 bg-zinc-800/40 rounded" />
+                        <div className="aspect-square w-full rounded-xl bg-[#292520]" />
+                        <div className="space-y-1.5 mt-2">
+                          <div className="h-3.5 w-3/4 bg-[#292520] rounded" />
+                          <div className="h-3 w-1/2 bg-[#292520] rounded" />
                         </div>
+                        <div className="h-8 w-full bg-[#292520] rounded-lg mt-3" />
                       </div>
                     ))}
                   </div>
@@ -343,20 +354,20 @@ export default function StorefrontPage() {
               ))}
             </div>
           ) : groupedSections.length === 0 ? (
-            <div className="p-12 rounded-3xl bg-zinc-900/40 border border-zinc-800 text-center space-y-3">
-              <ShoppingBag className="w-10 h-10 text-zinc-600 mx-auto" />
-              <h3 className="text-base font-bold text-white">No items found</h3>
-              <p className="text-xs text-zinc-400">
+            <div className="p-8 sm:p-12 rounded-2xl bg-[#1F1C18] border border-[#2E2924] text-center space-y-3">
+              <h3 className="text-sm font-bold text-[#F5F2EB]">No items found</h3>
+              <p className="text-xs text-[#A8A29E]">
                 {searchQuery
                   ? `No products matched "${searchQuery}".`
-                  : 'No products available in this section.'}
+                  : 'No items available in this category.'}
               </p>
               <button
+                type="button"
                 onClick={() => {
                   setSelectedSection('all');
                   setSearchQuery('');
                 }}
-                className="mt-2 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white transition"
+                className="mt-2 px-3 py-1.5 rounded-lg bg-[#292520] hover:bg-[#38332C] text-xs font-semibold text-[#F5F2EB] border border-[#2E2924] transition-colors cursor-pointer"
               >
                 Reset Filters
               </button>
@@ -366,54 +377,28 @@ export default function StorefrontPage() {
               <section
                 key={section.name}
                 id={section.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}
-                className="space-y-4 scroll-mt-24"
+                className="space-y-2.5 scroll-mt-24"
               >
-                {/* Distinct Section Header as requested */}
-                {section.name === 'Academic & Tech Services' ? (
-                  <div>
-                    <h2 className="text-2xl font-bold text-white mb-4 mt-8">Academic & Tech Services</h2>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/80 pb-3 gap-2 -mt-2">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${section.badgeColor}`}
-                        >
-                          {section.badge}
-                        </span>
-                        <p className="text-xs text-zinc-400">
-                          {section.tagline}
-                        </p>
-                      </div>
-                      <span className="text-xs font-mono text-zinc-500 self-start sm:self-auto">
-                        {section.products.length} {section.products.length === 1 ? 'item' : 'items'}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-zinc-800/80 pb-3 gap-2">
-                    <div>
-                      <div className="flex items-center gap-2.5">
-                        <h2 className="text-2xl font-bold text-white tracking-tight">
-                          {section.name}
-                        </h2>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${section.badgeColor}`}
-                        >
-                          {section.badge}
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-400 mt-1">
-                        {section.tagline}
-                      </p>
-                    </div>
-
-                    <span className="text-xs font-mono text-zinc-500 self-start sm:self-auto">
-                      {section.products.length} {section.products.length === 1 ? 'item' : 'items'}
+                {/* Section Header: Bold & tracking-tight */}
+                <div className="flex items-center justify-between border-b border-[#2E2924] pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-bold tracking-tight text-[#F5F2EB]">
+                      {section.name}
+                    </h2>
+                    <span
+                      className={`hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${section.badgeColor}`}
+                    >
+                      {section.badge}
                     </span>
                   </div>
-                )}
 
-                {/* Section Specific Product Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  <span className="text-xs font-mono tabular-nums text-[#A8A29E]">
+                    {section.products.length} {section.products.length === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
+
+                {/* Dense Mobile Grid: grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-4 */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-4">
                   {section.products.map((product) => (
                     <ProductCard
                       key={product.id}
@@ -429,21 +414,12 @@ export default function StorefrontPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-800/80 bg-zinc-950 py-8 px-4 text-center text-xs text-zinc-500 space-y-2 mt-12">
-        <p className="font-semibold text-zinc-400">
-          KhaoMojo • Late-Night Hostel Pickup & Printing Service
-        </p>
-        <p>
-          Operational 10:00 PM – 4:00 AM
-        </p>
-        <p className="text-amber-400 font-semibold text-xs sm:text-sm">
-          Pickup details: B Block room no 810 and C block room no 422.
-        </p>
-      </footer>
+      {/* 5. Floating Bottom Cart Bar */}
+      <FloatingCartBar />
 
       {/* Slide-out Cart Sidebar */}
       <CartDrawer
+        storeIsOpen={storeIsOpen}
         onOrderSuccess={(order) => {
           setLastPlacedOrder(order);
         }}

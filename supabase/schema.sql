@@ -41,6 +41,18 @@ CREATE TABLE IF NOT EXISTS order_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Table: store_settings
+CREATE TABLE IF NOT EXISTS store_settings (
+    id INT PRIMARY KEY,
+    is_open BOOLEAN DEFAULT true,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Insert single default row with id = 1
+INSERT INTO store_settings (id, is_open)
+VALUES (1, true)
+ON CONFLICT (id) DO NOTHING;
+
 -- Indexes for performance (handling 500+ concurrent users smoothly)
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_section_name ON products(section_name);
@@ -74,9 +86,24 @@ GRANT ALL ON TABLE public.order_items TO anon, authenticated;
 GRANT ALL ON TABLE public.products TO anon, authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 
+GRANT ALL ON TABLE public.store_settings TO anon, authenticated;
+
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE store_settings ENABLE ROW LEVEL SECURITY;
+
+-- Store Settings Policies
+CREATE POLICY "Allow anon and authenticated select store_settings"
+    ON store_settings FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+CREATE POLICY "Allow anon and authenticated update store_settings"
+    ON store_settings FOR UPDATE
+    TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);
 
 -- Product Policies
 CREATE POLICY "Allow anon and authenticated select products"
@@ -122,6 +149,7 @@ CREATE POLICY "Allow anon and authenticated select order_items"
 ALTER TABLE orders REPLICA IDENTITY FULL;
 ALTER TABLE order_items REPLICA IDENTITY FULL;
 ALTER TABLE products REPLICA IDENTITY FULL;
+ALTER TABLE store_settings REPLICA IDENTITY FULL;
 
 DO $$
 BEGIN
@@ -144,6 +172,13 @@ BEGIN
         WHERE pubname = 'supabase_realtime' AND tablename = 'products'
     ) THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE products;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'store_settings'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE store_settings;
     END IF;
 END $$;
 

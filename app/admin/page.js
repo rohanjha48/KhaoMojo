@@ -1,19 +1,22 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   Shield, Lock, LogOut, ArrowLeft, Clock, MapPin, Phone, 
   User, CheckCircle2, AlertCircle, RefreshCw, Download, 
   ExternalLink, FileText, ShoppingBag, Banknote, Edit3, 
-  Save, Plus, Flame, Check, X, Bell, Volume2, Sparkles, Database
+  Save, Plus, Flame, Check, X, Bell, Volume2, Sparkles, Database,
+  History, Calendar, Search
 } from 'lucide-react';
 import { 
   fetchOrders, 
   updateOrderStatus, 
   fetchProducts, 
   updateProductDetails, 
-  subscribeToRealtime 
+  subscribeToRealtime,
+  fetchStoreSettings,
+  updateStoreSettings
 } from '../../utils/dataService';
 import { isSupabaseConfigured, getSupabase } from '../../utils/supabase/client';
 import { playChime } from '../../utils/audio';
@@ -21,11 +24,16 @@ import { playChime } from '../../utils/audio';
 const DEFAULT_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || 'khaopiyoashkaro';
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('khaomojo_admin_auth') === 'true';
+    }
+    return false;
+  });
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
 
-  // Active Tab: 'orders' or 'inventory'
+  // Active Tab: 'orders', 'history', or 'inventory'
   const [activeTab, setActiveTab] = useState('orders');
 
   // Orders State
@@ -34,7 +42,20 @@ export default function AdminPage() {
   const [orderFilter, setOrderFilter] = useState('all'); // 'all', 'pending', 'processing', 'delivered'
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [latestOrderAlert, setLatestOrderAlert] = useState(null);
-  const [hasDesktopNotificationPerm, setHasDesktopNotificationPerm] = useState(false);
+  const [hasDesktopNotificationPerm, setHasDesktopNotificationPerm] = useState(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission === 'granted';
+    }
+    return false;
+  });
+
+  // Store Settings State (Open / Closed toggle moved to admin)
+  const [storeIsOpen, setStoreIsOpen] = useState(true);
+  const [isTogglingStore, setIsTogglingStore] = useState(false);
+
+  // Order History Filter & Search State
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState('all'); // 'all', 'delivered', 'cancelled'
 
   // Products State
   const [products, setProducts] = useState([]);
@@ -43,24 +64,10 @@ export default function AdminPage() {
   const [saveSuccessId, setSaveSuccessId] = useState(null);
 
   // Supabase connection state
-  const [isLiveDB, setIsLiveDB] = useState(false);
+  const [isLiveDB] = useState(() => isSupabaseConfigured());
 
   // Track seen order IDs to prevent duplicate alerts
   const seenOrderIds = React.useRef(new Set());
-
-  // Check existing session & notification permission
-  useEffect(() => {
-    setIsLiveDB(isSupabaseConfigured());
-    if (typeof window !== 'undefined') {
-      const savedAuth = sessionStorage.getItem('khaomojo_admin_auth');
-      if (savedAuth === 'true') {
-        setIsAuthenticated(true);
-      }
-      if ('Notification' in window) {
-        setHasDesktopNotificationPerm(Notification.permission === 'granted');
-      }
-    }
-  }, []);
 
   // Request browser notification permission
   const requestDesktopNotifications = async () => {
@@ -98,28 +105,74 @@ export default function AdminPage() {
     }
   };
 
-  // Fetch orders and products
-  const loadOrders = async () => {
+  // Load store open/close setting
+  const loadStoreStatus = useCallback(async () => {
     try {
-      setOrdersLoading(true);
+      const settings = await fetchStoreSettings();
+      if (settings && typeof settings.is_open === 'boolean') {
+        setStoreIsOpen(settings.is_open);
+      }
+    } catch (err) {
+      console.error('Failed to load store settings in admin:', err);
+    }
+  }, []);
+
+  // Handle Admin Store Open/Close Toggle
+  const handleToggleStore = async () => {
+    try {
+      setIsTogglingStore(true);
+      const nextStatus = !storeIsOpen;
+      setStoreIsOpen(nextStatus); // Optimistic UI update
+      await updateStoreSettings(nextStatus);
+    } catch (err) {
+      console.error('Failed to toggle store status in admin:', err);
+      loadStoreStatus();
+    } finally {
+      setIsTogglingStore(false);
+    }
+  };
+
+  // Fetch orders with Relational Join (orders with order_items and products)
+  const loadOrders = useCallback(async (showSpinner = false) => {
+    try {
+      if (showSpinner) setOrdersLoading(true);
+      const supabase = getSupabase();
+      if (isSupabaseConfigured() && supabase) {
+        // Relational join: orders with order_items and products
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*, order_items(*, products(*))')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          setOrders(data);
+          data.forEach((o) => {
+            if (o?.id) seenOrderIds.current.add(o.id);
+          });
+          return;
+        }
+        if (error) {
+          console.warn('Supabase fetch orders with relational join error, trying dataService:', error.message);
+        }
+      }
+
       const data = await fetchOrders();
       setOrders(data);
-      // Populate seen orders
       if (Array.isArray(data)) {
         data.forEach((o) => {
           if (o?.id) seenOrderIds.current.add(o.id);
         });
       }
     } catch (err) {
-      console.error('Failed to load orders:', err);
+      console.error('Failed to load orders in admin:', err);
     } finally {
       setOrdersLoading(false);
     }
-  };
+  }, []);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async (showSpinner = false) => {
     try {
-      setProductsLoading(true);
+      if (showSpinner) setProductsLoading(true);
       const data = await fetchProducts();
       setProducts(data);
     } catch (err) {
@@ -127,10 +180,10 @@ export default function AdminPage() {
     } finally {
       setProductsLoading(false);
     }
-  };
+  }, []);
 
   // Dedicated handler for instant new order dispatch
-  const handleIncomingOrder = (newRecord) => {
+  const handleIncomingOrder = useCallback((newRecord) => {
     if (!newRecord?.id) return;
     if (seenOrderIds.current.has(newRecord.id)) return;
     seenOrderIds.current.add(newRecord.id);
@@ -166,19 +219,22 @@ export default function AdminPage() {
     });
 
     // 5. Hydrate full items from DB
-    loadOrders();
-  };
+    loadOrders(false);
+    setTimeout(() => loadOrders(false), 800);
+  }, [soundEnabled, loadOrders]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    loadOrders();
-    loadProducts();
+    let isMounted = true;
+    (async () => {
+      await Promise.all([loadOrders(false), loadProducts(false), loadStoreStatus()]);
+    })();
 
     const supabase = getSupabase();
     let supabaseChannel = null;
 
-    // 1. Direct Supabase Realtime channel subscription to orders table
+    // 1. Direct Supabase Realtime channel subscription to orders, order_items and store_settings
     if (isSupabaseConfigured() && supabase) {
       try {
         const channelId = `admin-live-orders-${Date.now()}`;
@@ -194,12 +250,28 @@ export default function AdminPage() {
           )
           .on(
             'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'order_items' },
+            () => {
+              loadOrders(false);
+            }
+          )
+          .on(
+            'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'orders' },
             (payload) => {
               const updated = payload.new;
               setOrders((prev) =>
                 prev.map((o) => (o.id === updated.id ? { ...o, ...updated, items: o.items || [] } : o))
               );
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'store_settings' },
+            (payload) => {
+              if (payload?.new && typeof payload.new.is_open === 'boolean') {
+                setStoreIsOpen(payload.new.is_open);
+              }
             }
           )
           .subscribe((status, err) => {
@@ -221,7 +293,7 @@ export default function AdminPage() {
             prev.map((o) => (o.id === newRecord.id ? { ...o, ...newRecord, items: o.items || [] } : o))
           );
         } else {
-          loadOrders();
+          loadOrders(false);
         }
       },
       onProductChange: (payload) => {
@@ -230,18 +302,24 @@ export default function AdminPage() {
             prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
           );
         } else {
-          loadProducts();
+          loadProducts(false);
+        }
+      },
+      onStoreSettingsChange: (payload) => {
+        if (payload?.new && typeof payload.new.is_open === 'boolean') {
+          setStoreIsOpen(payload.new.is_open);
         }
       },
     });
 
     return () => {
+      isMounted = false;
       if (supabaseChannel && supabase) {
         supabase.removeChannel(supabaseChannel);
       }
       unsubscribeBroadcast();
     };
-  }, [isAuthenticated, soundEnabled]);
+  }, [isAuthenticated, handleIncomingOrder, loadOrders, loadProducts, loadStoreStatus]);
 
   // Handle PIN Login (strictly requires khaopiyoashkaro or NEXT_PUBLIC_ADMIN_PIN)
   const handleLogin = (e) => {
@@ -306,7 +384,7 @@ export default function AdminPage() {
     await updateProductDetails(productId, { stock_count: newStock });
   };
 
-  // Metrics Calculations
+  // Metrics Calculations for active orders
   const metrics = useMemo(() => {
     const totalRevenue = orders
       .filter((o) => o.status !== 'cancelled')
@@ -323,6 +401,38 @@ export default function AdminPage() {
     if (orderFilter === 'all') return true;
     return order.status === orderFilter;
   });
+
+  // Order History Panel Calculations (status = 'delivered' or 'cancelled')
+  const historyOrders = useMemo(() => {
+    return orders.filter((o) => o.status === 'delivered' || o.status === 'cancelled');
+  }, [orders]);
+
+  const historyMetrics = useMemo(() => {
+    const deliveredOrders = historyOrders.filter((o) => o.status === 'delivered');
+    const totalRevenue = deliveredOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const deliveredCount = deliveredOrders.length;
+    const cancelledCount = historyOrders.filter((o) => o.status === 'cancelled').length;
+    return { totalRevenue, deliveredCount, cancelledCount };
+  }, [historyOrders]);
+
+  const filteredHistoryOrders = useMemo(() => {
+    return historyOrders.filter((order) => {
+      if (historyStatusFilter !== 'all' && order.status !== historyStatusFilter) {
+        return false;
+      }
+      if (!historySearchQuery.trim()) return true;
+      const q = historySearchQuery.toLowerCase();
+      const name = (order.customer_name || '').toLowerCase();
+      const room = (order.room_number || '').toLowerCase();
+      const phone = (order.phone_number || '').toLowerCase();
+      const itemsList = order.order_items || order.items || [];
+      const itemMatch = itemsList.some((it) => {
+        const prodName = (it.products?.name || (Array.isArray(it.products) ? it.products[0]?.name : null) || it.product_name || '').toLowerCase();
+        return prodName.includes(q);
+      });
+      return name.includes(q) || room.includes(q) || phone.includes(q) || itemMatch;
+    });
+  }, [historyOrders, historyStatusFilter, historySearchQuery]);
 
   // Login Screen
   if (!isAuthenticated) {
@@ -541,6 +651,67 @@ export default function AdminPage() {
 
       {/* Main Admin Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Store Operating Status Controller (Moved completely to /admin for security) */}
+        <div className={`p-4 sm:p-5 rounded-3xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl ${
+          storeIsOpen
+            ? 'bg-gradient-to-r from-emerald-950/40 via-zinc-900 to-zinc-900/90 border-emerald-500/40 shadow-emerald-500/5'
+            : 'bg-gradient-to-r from-rose-950/40 via-zinc-900 to-zinc-900/90 border-rose-500/40 shadow-rose-500/5'
+        }`}>
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 border shadow-inner ${
+              storeIsOpen
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+            }`}>
+              {storeIsOpen ? <Sparkles className="w-6 h-6 animate-pulse" /> : <Lock className="w-6 h-6" />}
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-extrabold text-white">Storefront Status Controller:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider border ${
+                  storeIsOpen
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  {storeIsOpen ? '● Store is OPEN (Accepting Orders)' : '● Store is CLOSED (Cart Disabled)'}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+                {storeIsOpen
+                  ? 'The public storefront is currently open. Students can add items to cart, attach assignments, and checkout.'
+                  : 'The public storefront is closed. Homepage displays the Closed notice and disables the cart for all students.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleToggleStore}
+            disabled={isTogglingStore}
+            className={`px-5 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 shrink-0 ${
+              storeIsOpen
+                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/25 hover:scale-[1.02] active:scale-[0.98]'
+                : 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-emerald-500/25 hover:scale-[1.02] active:scale-[0.98]'
+            } disabled:opacity-50`}
+          >
+            {isTogglingStore ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Updating Store...</span>
+              </>
+            ) : storeIsOpen ? (
+              <>
+                <Lock className="w-4 h-4" />
+                <span>Close Store Now</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Open Store Now</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Metric Cards Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           {/* Revenue */}
@@ -594,12 +765,12 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Tab Switcher: Orders vs Inventory */}
+        {/* Tab Switcher: Orders vs History vs Inventory */}
         <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
             <button
               onClick={() => setActiveTab('orders')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
                 activeTab === 'orders'
                   ? 'bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20'
                   : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
@@ -613,8 +784,23 @@ export default function AdminPage() {
             </button>
 
             <button
+              onClick={() => setActiveTab('history')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                activeTab === 'history'
+                  ? 'bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20'
+                  : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              <span>Order History</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/20">
+                {historyOrders.length}
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('inventory')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
                 activeTab === 'inventory'
                   ? 'bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20'
                   : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
@@ -737,47 +923,62 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        {/* Order Items List */}
+                        {/* Order Items List (Iterating over order.order_items with relational products join) */}
                         <div className="space-y-1.5 mb-4">
                           <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
                             Order Items:
                           </span>
                           <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                            {(order.items || []).map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/50 text-xs flex flex-col gap-1"
-                              >
-                                <div className="flex justify-between items-center">
-                                  <span className="font-semibold text-white">
-                                    {item.quantity}x {item.product_name || 'Item'}
-                                  </span>
-                                  <span className="font-mono text-zinc-300 font-bold">
-                                    ₹{(item.unit_price * item.quantity).toFixed(0)}
-                                  </span>
-                                </div>
+                            {((order.order_items && order.order_items.length > 0)
+                              ? order.order_items
+                              : (order.items || [])
+                            ).map((item, idx) => {
+                              const productName = item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || item.product_name || 'Item';
+                              const quantity = item.quantity || 1;
+                              const unitPrice = item.unit_price || item.price || 0;
 
-                                {/* Uploaded Print File link if present */}
-                                {item.print_file_url && (
-                                  <div className="mt-1 pt-1 border-t border-zinc-800/50 flex items-center justify-between">
-                                    <div className="flex items-center gap-1 text-[11px] text-cyan-400 truncate">
-                                      <FileText className="w-3 h-3 shrink-0" />
-                                      <span className="truncate">Assignment / Print File</span>
-                                    </div>
-                                    <a
-                                      href={item.print_file_url}
-                                      download
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold text-[10px] transition shrink-0"
-                                    >
-                                      <Download className="w-3 h-3" />
-                                      <span>Download</span>
-                                    </a>
+                              return (
+                                <div
+                                  key={item.id || idx}
+                                  className="p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/50 text-xs flex flex-col gap-1"
+                                >
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-semibold text-white">
+                                      {quantity}x {productName}
+                                    </span>
+                                    <span className="font-mono text-zinc-300 font-bold">
+                                      ₹{(unitPrice * quantity).toFixed(0)}
+                                    </span>
                                   </div>
-                                )}
+
+                                  {/* Uploaded Print File link if present */}
+                                  {item.print_file_url && (
+                                    <div className="mt-1 pt-1 border-t border-zinc-800/50 flex items-center justify-between">
+                                      <div className="flex items-center gap-1 text-[11px] text-cyan-400 truncate">
+                                        <FileText className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">Assignment / Print File</span>
+                                      </div>
+                                      <a
+                                        href={item.print_file_url}
+                                        download
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold text-[10px] transition shrink-0"
+                                      >
+                                        <Download className="w-3 h-3" />
+                                        <span>Download</span>
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {(!order.order_items || order.order_items.length === 0) && (!order.items || order.items.length === 0) && (
+                              <div className="text-zinc-500 text-xs italic py-1 px-2 rounded bg-zinc-950/30">
+                                No item breakdown found
                               </div>
-                            ))}
+                            )}
                           </div>
                         </div>
                       </div>
@@ -840,6 +1041,262 @@ export default function AdminPage() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 2: ORDER HISTORY (Delivered & Cancelled) */}
+        {activeTab === 'history' && (
+          <div className="space-y-6">
+            {/* Top Stat Cards for History */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+                <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
+                  <span>Delivered Revenue</span>
+                  <Banknote className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-2xl font-black font-mono text-emerald-400">
+                  ₹{historyMetrics.totalRevenue.toFixed(0)}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-1">
+                  Total collected from delivered orders
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+                <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
+                  <span>Fulfilled Orders</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-2xl font-black font-mono text-white">
+                  {historyMetrics.deliveredCount}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-1">
+                  Orders successfully delivered
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+                <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
+                  <span>Cancelled Orders</span>
+                  <X className="w-4 h-4 text-rose-400" />
+                </div>
+                <div className="text-2xl font-black font-mono text-rose-400">
+                  {historyMetrics.cancelledCount}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-1">
+                  Out of stock or student cancelled
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Filter pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                {[
+                  { id: 'all', label: 'All History', count: historyOrders.length },
+                  { id: 'delivered', label: 'Delivered', count: historyMetrics.deliveredCount },
+                  { id: 'cancelled', label: 'Cancelled', count: historyMetrics.cancelledCount },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setHistoryStatusFilter(tab.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+                      historyStatusFilter === tab.id
+                        ? 'bg-zinc-800 text-white border border-zinc-700 shadow-sm'
+                        : 'text-zinc-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/30">
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Search Box */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Search customer, room, phone, item..."
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition"
+                />
+                {historySearchQuery && (
+                  <button
+                    onClick={() => setHistorySearchQuery('')}
+                    className="absolute right-2.5 top-2 text-zinc-500 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* History Table Container */}
+            <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800 overflow-hidden shadow-xl">
+              <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                    <History className="w-4 h-4 text-emerald-400" />
+                    <span>Archived Order History</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Records of delivered & cancelled orders with full customer and item details
+                  </p>
+                </div>
+                <button
+                  onClick={loadOrders}
+                  className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition"
+                  title="Reload Orders"
+                >
+                  <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              {filteredHistoryOrders.length === 0 ? (
+                <div className="p-12 text-center space-y-2">
+                  <History className="w-10 h-10 text-zinc-600 mx-auto" />
+                  <h4 className="text-sm font-bold text-white">No order history records found</h4>
+                  <p className="text-xs text-zinc-400">
+                    {historySearchQuery
+                      ? `No history records matching "${historySearchQuery}".`
+                      : 'Orders marked as delivered or cancelled will automatically appear in this historical archive.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800 bg-zinc-950/60 text-zinc-400 uppercase font-mono tracking-wider text-[11px]">
+                        <th className="py-3 px-4">Date & Time</th>
+                        <th className="py-3 px-4">Customer Details</th>
+                        <th className="py-3 px-4">Room Number</th>
+                        <th className="py-3 px-4">Items Purchased</th>
+                        <th className="py-3 px-4 text-right">Revenue</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 font-sans">
+                      {filteredHistoryOrders.map((order) => {
+                        const itemsList = (order.order_items && order.order_items.length > 0)
+                          ? order.order_items
+                          : (order.items || []);
+                        const isDelivered = order.status === 'delivered';
+
+                        return (
+                          <tr key={order.id} className="hover:bg-zinc-950/30 transition">
+                            {/* Date & Time */}
+                            <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                              <div className="font-semibold text-white">
+                                {new Date(order.created_at).toLocaleDateString('en-IN', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                                {new Date(order.created_at).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </div>
+                            </td>
+
+                            {/* Customer Details */}
+                            <td className="py-3.5 px-4 align-top">
+                              <div className="font-semibold text-white flex items-center gap-1.5">
+                                <User className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                                <span>{order.customer_name || 'Student'}</span>
+                              </div>
+                              <div className="mt-0.5">
+                                <a
+                                  href={`tel:${order.phone_number}`}
+                                  className="text-emerald-400 hover:underline font-mono text-[11px] inline-flex items-center gap-1"
+                                >
+                                  <Phone className="w-2.5 h-2.5" />
+                                  <span>{order.phone_number || 'N/A'}</span>
+                                </a>
+                              </div>
+                            </td>
+
+                            {/* Room Number */}
+                            <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1 font-mono font-bold text-white bg-zinc-950 px-2 py-1 rounded-lg border border-zinc-800 text-[11px]">
+                                <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span>{order.room_number}</span>
+                              </div>
+                            </td>
+
+                            {/* Items Purchased */}
+                            <td className="py-3.5 px-4 align-top min-w-[240px]">
+                              <div className="space-y-1.5">
+                                {itemsList.map((item, idx) => {
+                                  const prodName = item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || item.product_name || 'Item';
+                                  const qty = item.quantity || 1;
+                                  const unitPrice = item.unit_price || item.price || 0;
+
+                                  return (
+                                    <div key={idx} className="flex items-center justify-between gap-3 text-xs">
+                                      <span className="text-zinc-200">
+                                        <strong className="text-white font-mono">{qty}x</strong> {prodName}
+                                      </span>
+                                      <span className="text-zinc-400 font-mono text-[11px] shrink-0">
+                                        ₹{(unitPrice * qty).toFixed(0)}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+
+                                {itemsList.length === 0 && (
+                                  <span className="text-zinc-500 italic text-[11px]">No items details</span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Revenue */}
+                            <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                              <div className={`font-mono font-bold text-sm ${
+                                isDelivered ? 'text-emerald-400' : 'text-zinc-500 line-through'
+                              }`}>
+                                ₹{Number(order.total_amount || 0).toFixed(0)}
+                              </div>
+                              <div className="text-[10px] text-zinc-500">
+                                {isDelivered ? 'Settled' : 'Not Collected'}
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                isDelivered
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                              }`}>
+                                {isDelivered ? (
+                                  <>
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>Delivered</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <X className="w-3 h-3" />
+                                    <span>Cancelled</span>
+                                  </>
+                                )}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

@@ -479,6 +479,16 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
 
       const createdOrderWithItems = {
         ...orderData,
+        order_items: items.map((item) => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.price,
+          print_file_url: item.printFileUrl || null,
+          products: {
+            id: item.id,
+            name: item.name,
+          },
+        })),
         items: items.map((item) => ({
           product_id: item.id,
           product_name: item.name,
@@ -509,6 +519,18 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
     total_amount: totalAmount,
     status: 'pending',
     created_at: new Date().toISOString(),
+    order_items: items.map((item) => ({
+      id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      order_id: orderId,
+      product_id: item.id,
+      quantity: item.quantity,
+      unit_price: item.price,
+      print_file_url: item.printFileUrl || null,
+      products: {
+        id: item.id,
+        name: item.name,
+      },
+    })),
     items: items.map((item) => ({
       id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
       order_id: orderId,
@@ -556,6 +578,79 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
 }
 
 /**
+ * Fetch store settings (id = 1) from Supabase or fallback
+ */
+export async function fetchStoreSettings() {
+  const supabase = getSupabase();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('store_settings')
+        .select('id, is_open')
+        .eq('id', 1)
+        .maybeSingle();
+
+      if (!error && data) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('khaomojo_store_settings_is_open', String(data.is_open));
+        }
+        return { id: 1, is_open: Boolean(data.is_open) };
+      }
+      if (error && error.code !== 'PGRST116') {
+        console.warn('Supabase fetch store_settings error:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase fetch store_settings exception:', err);
+    }
+  }
+
+  // Local fallback
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem('khaomojo_store_settings_is_open');
+    if (cached !== null) {
+      return { id: 1, is_open: cached === 'true' };
+    }
+  }
+
+  return { id: 1, is_open: true };
+}
+
+/**
+ * Update store settings (id = 1) in Supabase and notify all clients
+ */
+export async function updateStoreSettings(isOpen) {
+  const supabase = getSupabase();
+  const nextOpen = Boolean(isOpen);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('khaomojo_store_settings_is_open', String(nextOpen));
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: 'STORE_SETTINGS_CHANGED', payload: { id: 1, is_open: nextOpen } });
+    }
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('store_settings')
+        .upsert({ id: 1, is_open: nextOpen, updated_at: new Date().toISOString() })
+        .select()
+        .single();
+
+      if (!error && data) {
+        return { id: 1, is_open: Boolean(data.is_open) };
+      }
+      console.warn('Supabase update store_settings error:', error?.message);
+    } catch (err) {
+      console.warn('Supabase update store_settings exception:', err);
+    }
+  }
+
+  return { id: 1, is_open: nextOpen };
+}
+
+/**
  * Fetch all orders (Admin function)
  */
 export async function fetchOrders() {
@@ -565,41 +660,25 @@ export async function fetchOrders() {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          id,
-          customer_name,
-          room_number,
-          phone_number,
-          total_amount,
-          status,
-          created_at,
-          order_items (
-            id,
-            quantity,
-            unit_price,
-            print_file_url,
-            products (
-              id,
-              name,
-              category
-            )
-          )
-        `)
+        .select('*, order_items(*, products(*))')
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        // Normalize order_items
-        return data.map((order) => ({
-          ...order,
-          items: (order.order_items || []).map((item) => ({
-            id: item.id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            print_file_url: item.print_file_url,
-            product_name: item.products?.name || 'Item',
-            product_id: item.products?.id,
-          })),
-        }));
+        return data.map((order) => {
+          const orderItems = order.order_items || [];
+          return {
+            ...order,
+            order_items: orderItems,
+            items: orderItems.map((item) => ({
+              id: item.id,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              print_file_url: item.print_file_url,
+              product_name: item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || 'Item',
+              product_id: item.product_id,
+            })),
+          };
+        });
       }
       console.warn('Supabase fetch orders error:', error?.message);
     } catch (err) {
@@ -612,14 +691,39 @@ export async function fetchOrders() {
     const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        return parsed.map((order) => ({
+          ...order,
+          order_items: order.order_items || (order.items || []).map((it) => ({
+            id: it.id,
+            quantity: it.quantity,
+            unit_price: it.unit_price || it.price,
+            print_file_url: it.print_file_url,
+            products: {
+              id: it.product_id || it.id,
+              name: it.product_name || it.name,
+            },
+          })),
+        }));
       } catch {
         // ignore parse error
       }
     }
   }
 
-  return globalThis.__khaomojo_orders || [];
+  return (globalThis.__khaomojo_orders || []).map((order) => ({
+    ...order,
+    order_items: order.order_items || (order.items || []).map((it) => ({
+      id: it.id,
+      quantity: it.quantity,
+      unit_price: it.unit_price || it.price,
+      print_file_url: it.print_file_url,
+      products: {
+        id: it.product_id || it.id,
+        name: it.product_name || it.name,
+      },
+    })),
+  }));
 }
 
 /**
@@ -665,9 +769,9 @@ export async function updateOrderStatus(orderId, newStatus) {
 }
 
 /**
- * Subscribe to realtime updates for orders and products
+ * Subscribe to realtime updates for orders, products and store settings
  */
-export function subscribeToRealtime({ onOrderChange, onProductChange }) {
+export function subscribeToRealtime({ onOrderChange, onProductChange, onStoreSettingsChange }) {
   const supabase = getSupabase();
 
   // 1. Supabase Realtime Subscription if configured
@@ -693,6 +797,14 @@ export function subscribeToRealtime({ onOrderChange, onProductChange }) {
             if (onProductChange) onProductChange(payload);
           }
         )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'store_settings' },
+          (payload) => {
+            console.log('[Supabase Realtime Store Settings Event]:', payload.eventType, payload.new);
+            if (onStoreSettingsChange) onStoreSettingsChange(payload);
+          }
+        )
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             console.log(`[Supabase Realtime] Successfully subscribed to orders channel (${channelId})`);
@@ -714,6 +826,8 @@ export function subscribeToRealtime({ onOrderChange, onProductChange }) {
       onOrderChange({ eventType: 'UPDATE', new: payload });
     } else if ((type === 'PRODUCT_UPDATED' || type === 'PRODUCTS_UPDATED') && onProductChange) {
       onProductChange({ eventType: 'UPDATE', new: payload });
+    } else if (type === 'STORE_SETTINGS_CHANGED' && onStoreSettingsChange) {
+      onStoreSettingsChange({ eventType: 'UPDATE', new: payload });
     }
   };
 
