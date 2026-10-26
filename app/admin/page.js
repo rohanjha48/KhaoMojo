@@ -947,48 +947,16 @@ export default function AdminPage() {
                           <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
                             Order Items:
                           </span>
-                          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                            {(order.order_items || order.items || []).map((item, idx) => {
-                              const productName = item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || item.product_name || 'Item';
-                              const quantity = item.quantity || 1;
-                              const unitPrice = item.unit_price || item.price_at_time || item.price || 0;
-
-                              return (
-                                <div
-                                  key={item.id || idx}
-                                  className="p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/50 text-xs flex flex-col gap-1"
-                                >
-                                  <div className="flex justify-between items-center">
-                                    <span className="font-semibold text-white">
-                                      {quantity}x {productName}
-                                    </span>
-                                    <span className="font-mono text-zinc-300 font-bold">
-                                      ₹{(unitPrice * quantity).toFixed(0)}
-                                    </span>
-                                  </div>
-
-                                  {/* Uploaded Print File link if present */}
-                                  {item.print_file_url && (
-                                    <div className="mt-1 pt-1 border-t border-zinc-800/50 flex items-center justify-between">
-                                      <div className="flex items-center gap-1 text-[11px] text-cyan-400 truncate">
-                                        <FileText className="w-3 h-3 shrink-0" />
-                                        <span className="truncate">Assignment / Print File</span>
-                                      </div>
-                                      <a
-                                        href={item.print_file_url}
-                                        download
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold text-[10px] transition shrink-0"
-                                      >
-                                        <Download className="w-3 h-3" />
-                                        <span>Download</span>
-                                      </a>
-                                    </div>
-                                  )}
+                          <div className="mt-2 space-y-1">
+                            {order.order_items && order.order_items.length > 0 ? (
+                              order.order_items.map((item, idx) => (
+                                <div key={idx} className="flex justify-between text-sm text-[#F5F2EB]">
+                                  <span>{item.quantity}x {item.product_name || item.products?.name || 'Unknown Item'}</span>
                                 </div>
-                              );
-                            })}
+                              ))
+                            ) : (
+                              <div className="text-xs text-red-400 font-mono">⚠️ Items missing in database</div>
+                            )}
                           </div>
                         </div>
                       </div>
