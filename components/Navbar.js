@@ -1,12 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Shield, ShoppingBag } from 'lucide-react';
 import { useCart } from './CartContext';
 
 export default function Navbar({ storeIsOpen = true }) {
   const { totalItems, totalAmount, setIsCartOpen } = useCart();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 w-full bg-[#141210]/95 backdrop-blur-md border-b border-[#2E2924] py-2.5">
@@ -48,8 +53,8 @@ export default function Navbar({ storeIsOpen = true }) {
             )}
           </div>
 
-          {/* Desktop Cart button */}
-          {totalItems > 0 && (
+          {/* Desktop Cart button: Render only after mounting to prevent SSR hydration mismatch */}
+          {isMounted && totalItems > 0 && (
             <button
               onClick={() => setIsCartOpen(true)}
               className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg bg-[#FF5500] hover:bg-[#ff6a1a] text-white font-bold text-xs shadow-sm transition-all cursor-pointer font-mono"

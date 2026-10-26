@@ -1,12 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from './CartContext';
 
 export default function FloatingCartBar() {
   const { totalItems, totalAmount, setIsCartOpen } = useCart();
+  const [isMounted, setIsMounted] = useState(false);
 
-  if (totalItems <= 0) return null;
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted || totalItems <= 0) return null;
 
   return (
     <div
