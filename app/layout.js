@@ -24,7 +24,7 @@ export const viewport = {
 export const metadata = {
   title: "KhaoMojo | Late-Night Hostel Delivery & Printing",
   description:
-    "Late-night food cravings, snacks, Maggi, and urgent assignment printouts delivered to your hostel room in 15 mins. Operational 10:00 PM to 4:00 AM.",
+    "Late-night food cravings, snacks, Maggi, and urgent assignment printouts for your hostel. Operational 10:00 PM to 4:00 AM.",
 };
 
 export default function RootLayout({ children }) {

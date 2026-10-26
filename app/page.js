@@ -251,8 +251,8 @@ export default function StorefrontPage() {
           {/* Hostel Pickup Info */}
           <div className="flex items-center gap-2 text-xs text-[#A8A29E] bg-[#1F1C18] border border-[#2E2924] rounded-xl px-3 py-1.5 shrink-0">
             <MapPin className="w-3.5 h-3.5 text-[#FF5500] shrink-0" />
-            <span className="truncate">
-              Pickup: <strong className="text-[#F5F2EB]">B Block 810</strong> & <strong className="text-[#F5F2EB]">C Block 422</strong>
+            <span>
+              Pickup details: B block 8th floor and C block 4th floor.
             </span>
           </div>
 

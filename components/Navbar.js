@@ -26,7 +26,7 @@ export default function Navbar({ storeIsOpen = true }) {
               </span>
             </div>
             <p className="text-[10px] text-[#A8A29E] tracking-tight hidden sm:block mt-0.5">
-              10 PM – 4 AM • 15m Room Delivery
+              10 PM – 4 AM
             </p>
           </div>
         </Link>
@@ -38,8 +38,7 @@ export default function Navbar({ storeIsOpen = true }) {
             {storeIsOpen ? (
               <>
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="text-[#F5F2EB] font-medium hidden xs:inline">Open •</span>
-                <span className="text-emerald-400 font-semibold font-mono tabular-nums text-[11px]">15m Delivery</span>
+                <span className="text-[#F5F2EB] font-medium">Open Now</span>
               </>
             ) : (
               <>

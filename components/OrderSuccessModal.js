@@ -55,7 +55,7 @@ export default function OrderSuccessModal({ order, onClose }) {
             <span className="text-zinc-500 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-amber-400" /> ETA:
             </span>
-            <span className="font-semibold text-emerald-400">10 – 15 Minutes</span>
+            <span className="font-semibold text-emerald-400">Ready Shortly</span>
           </div>
         </div>
 
@@ -63,11 +63,8 @@ export default function OrderSuccessModal({ order, onClose }) {
         <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-start gap-2.5 mb-5">
           <MapPin className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div>
-            <div className="font-bold text-amber-200 uppercase tracking-wide text-[11px]">
-              Pickup Details:
-            </div>
-            <div className="mt-0.5 font-medium">
-              B Block room no 810 and C block room no 422.
+            <div className="font-medium text-amber-200">
+              Pickup details: B block 8th floor and C block 4th floor.
             </div>
           </div>
         </div>
@@ -102,7 +99,7 @@ export default function OrderSuccessModal({ order, onClose }) {
           </div>
 
           <div className="mt-3 pt-2 border-t border-zinc-800 flex justify-between text-sm font-bold text-white">
-            <span>Total Payable on Pickup:</span>
+            <span>Total Paid (Prepaid UPI):</span>
             <span className="text-emerald-400 font-mono">
               ₹{Number(order.total_amount).toFixed(0)}
             </span>

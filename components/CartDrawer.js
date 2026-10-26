@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { 
   X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, 
   MapPin, Phone, User, CheckCircle2, Loader2, Sparkles, 
-  Banknote, QrCode, FileText, ExternalLink 
+  QrCode, FileText, ExternalLink 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCart } from './CartContext';
@@ -26,18 +26,10 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
   const [customerName, setCustomerName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('UPI on Delivery'); // or 'Cash on Delivery'
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
   if (!isCartOpen) return null;
-
-  const handleQuickRoom = (prefix) => {
-    setRoomNumber((prev) => {
-      if (prev.startsWith(prefix)) return prev;
-      return `${prefix} Room `;
-    });
-  };
 
   const handleCheckout = async (e) => {
     e.preventDefault();
@@ -64,7 +56,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
     }
 
     if (!phoneNumber.trim() || phoneNumber.trim().length < 8) {
-      setFormError('Please enter a valid phone number for delivery contact.');
+      setFormError('Please enter a valid phone number for contact.');
       return;
     }
 
@@ -75,6 +67,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
         customerName: customerName.trim(),
         roomNumber: roomNumber.trim(),
         phoneNumber: phoneNumber.trim(),
+        paymentMethod: 'UPI Prepaid',
         items: items.map((item) => ({
           id: item.id,
           name: item.name,
@@ -88,9 +81,9 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
 
       const placedOrder = await createOrder(orderPayload);
 
-      // Trigger Telegram Notification asynchronously
+      // Trigger Telegram Notification (await to prevent mobile/Vercel browser request drops)
       try {
-        fetch('/api/notify', {
+        const notifyRes = await fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -101,11 +94,15 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
             totalAmount: orderPayload.totalAmount,
             orderId: placedOrder?.id,
           }),
-        }).catch((err) => {
-          console.warn('[CartDrawer] Telegram notification call returned error:', err);
         });
+        const notifyData = await notifyRes.json().catch(() => ({}));
+        if (!notifyRes.ok || notifyData?.success === false) {
+          console.error('[CartDrawer] Telegram notification error response:', notifyData);
+        } else {
+          console.log('[CartDrawer] Telegram notification dispatched successfully:', notifyData);
+        }
       } catch (notifyErr) {
-        console.warn('[CartDrawer] Failed to dispatch Telegram notification:', notifyErr);
+        console.error('[CartDrawer] Failed to dispatch Telegram notification:', notifyErr);
       }
 
       // Play success chime & launch celebratory confetti
@@ -155,7 +152,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
               <div>
                 <h2 className="text-base font-bold text-[#F5F2EB] tracking-tight">Your Cart</h2>
                 <p className="text-xs text-[#A8A29E] font-mono tabular-nums">
-                  {totalItems} {totalItems === 1 ? 'item' : 'items'} • Fast Room Delivery
+                  {totalItems} {totalItems === 1 ? 'item' : 'items'}
                 </p>
               </div>
             </div>
@@ -192,7 +189,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
                 <div className="p-2.5 rounded-xl bg-[#1F1C18] border border-[#2E2924] flex items-center gap-2.5 text-xs text-[#A8A29E]">
                   <Sparkles className="w-4 h-4 text-[#FF5500] shrink-0" />
                   <span>
-                    <strong className="text-[#F5F2EB]">Hostel Pickup:</strong> B Block 810 & C Block 422
+                    Pickup details: B block 8th floor and C block 4th floor.
                   </span>
                 </div>
 
@@ -306,7 +303,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[#1F1C18] border border-[#2E2924] text-xs text-[#A8A29E]">
-                    <strong className="text-[#F5F2EB]">Pickup details:</strong> B Block room no 810 and C block room no 422.
+                    <strong className="text-[#F5F2EB]">Pickup details:</strong> B block 8th floor and C block 4th floor.
                   </div>
 
                   {/* Customer Name */}
@@ -343,26 +340,12 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
                         className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1F1C18] border border-[#2E2924] text-sm text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none focus:border-[#FF5500] transition-colors"
                       />
                     </div>
-
-                    {/* Quick hostel block pills */}
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {['Block A', 'Block B', 'Block C', 'BH-1', 'GH-1'].map((block) => (
-                        <button
-                          key={block}
-                          type="button"
-                          onClick={() => handleQuickRoom(block)}
-                          className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#1F1C18] hover:bg-[#292520] border border-[#2E2924] text-[#A8A29E] hover:text-[#F5F2EB] transition-colors cursor-pointer"
-                        >
-                          +{block}
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
                   {/* Phone Number */}
                   <div>
                     <label className="block text-[11px] font-semibold text-[#A8A29E] mb-1">
-                      Phone Number (for call on arrival) *
+                      Phone Number *
                     </label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-2.5 w-4 h-4 text-[#A8A29E]" />
@@ -377,47 +360,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
                     </div>
                   </div>
 
-                  {/* Payment Method Selector */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#A8A29E] mb-1.5">
-                      Payment on Delivery
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentMethod('UPI on Delivery')}
-                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-colors text-xs font-semibold cursor-pointer ${
-                          paymentMethod === 'UPI on Delivery'
-                            ? 'bg-[#FF5500]/15 border-[#FF5500] text-[#F5F2EB]'
-                            : 'bg-[#1F1C18] border-[#2E2924] text-[#A8A29E] hover:border-[#3E3731]'
-                        }`}
-                      >
-                        <QrCode className="w-4 h-4 text-[#FF5500] shrink-0" />
-                        <div>
-                          <div className="text-[#F5F2EB]">UPI QR Scan</div>
-                          <div className="text-[10px] font-normal text-[#A8A29E]">GPay, PhonePe, Paytm</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPaymentMethod('Cash on Delivery')}
-                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-colors text-xs font-semibold cursor-pointer ${
-                          paymentMethod === 'Cash on Delivery'
-                            ? 'bg-[#FF5500]/15 border-[#FF5500] text-[#F5F2EB]'
-                            : 'bg-[#1F1C18] border-[#2E2924] text-[#A8A29E] hover:border-[#3E3731]'
-                        }`}
-                      >
-                        <Banknote className="w-4 h-4 text-[#FF5500] shrink-0" />
-                        <div>
-                          <div className="text-[#F5F2EB]">Cash on Delivery</div>
-                          <div className="text-[10px] font-normal text-[#A8A29E]">Exact change handy</div>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* UPI QR Payment Section */}
+                  {/* Prepaid UPI Payment Section */}
                   <div className="p-3.5 rounded-2xl bg-[#1F1C18] border border-[#2E2924] space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -425,7 +368,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
                           <QrCode className="w-4 h-4" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-[#F5F2EB]">UPI Payment</h4>
+                          <h4 className="text-xs font-bold text-[#F5F2EB]">Prepaid UPI Payment</h4>
                           <p className="text-[10px] text-[#A8A29E]">GPay • PhonePe • Paytm • Any UPI App</p>
                         </div>
                       </div>
@@ -436,19 +379,19 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
 
                     {/* Static QR Code Image */}
                     <div className="flex flex-col items-center justify-center py-1">
-                      <div className="p-2.5 bg-white rounded-2xl shadow-xl border border-zinc-700/60 max-w-[180px] w-full aspect-square flex items-center justify-center transition-transform hover:scale-[1.02]">
+                      <div className="p-3 bg-white rounded-2xl shadow-xl border border-zinc-700/60 max-w-[200px] w-full aspect-square flex items-center justify-center transition-transform hover:scale-[1.02] overflow-hidden">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src="/qr_code.jpg"
+                          src="/img_5915.jpg"
                           alt="UPI Payment QR Code"
-                          className="w-full h-full object-contain rounded-lg"
+                          className="w-full h-full object-contain"
                         />
                       </div>
                     </div>
 
                     {/* Required Note */}
                     <p className="text-center text-xs font-medium text-[#F5F2EB]/90 bg-[#292520] p-2 rounded-xl border border-[#2E2924]">
-                      Scan to pay. Your order will be verified upon delivery.
+                      Scan to pay. All orders are strictly prepaid via UPI.
                     </p>
                   </div>
 
@@ -471,8 +414,8 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
                   <span className="font-mono text-[#F5F2EB] tabular-nums font-bold">₹{totalAmount.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Late Night Delivery Fee</span>
-                  <span className="text-[#FF5500] font-semibold font-mono">FREE (Hostel Promo)</span>
+                  <span>Hostel Promo</span>
+                  <span className="text-[#FF5500] font-semibold font-mono">FREE Pickup</span>
                 </div>
                 <div className="flex justify-between text-base font-bold text-[#F5F2EB] pt-2 border-t border-[#2E2924]">
                   <span>Total Payable</span>
@@ -507,7 +450,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
 
               <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#A8A29E]">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#FF5500]" />
-                <span>Pay on pickup via Cash or UPI</span>
+                <span>Strictly Prepaid UPI Order</span>
               </div>
             </div>
           )}

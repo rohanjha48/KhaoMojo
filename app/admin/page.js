@@ -624,7 +624,7 @@ export default function AdminPage() {
               </div>
               <div className="text-xs font-medium text-zinc-900/80 truncate">
                 {latestOrderAlert.customer_name ? `${latestOrderAlert.customer_name} • ` : ''}
-                {latestOrderAlert.phone_number || 'Cash/UPI on Pickup'}
+                {latestOrderAlert.phone_number || 'Prepaid UPI'}
               </div>
             </div>
             <div className="flex items-center gap-1">
