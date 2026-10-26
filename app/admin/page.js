@@ -145,8 +145,27 @@ export default function AdminPage() {
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          setOrders(data);
-          data.forEach((o) => {
+          const hydratedData = data.map((order) => {
+            if ((!order.order_items || order.order_items.length === 0) && typeof window !== 'undefined') {
+              try {
+                const localRaw = localStorage.getItem('khaomojo_orders');
+                if (localRaw) {
+                  const localList = JSON.parse(localRaw);
+                  const found = localList.find((lo) => lo.id === order.id);
+                  if (found && (found.order_items?.length || found.items?.length)) {
+                    return {
+                      ...order,
+                      order_items: found.order_items || found.items,
+                      items: found.items || found.order_items,
+                    };
+                  }
+                }
+              } catch {}
+            }
+            return order;
+          });
+          setOrders(hydratedData);
+          hydratedData.forEach((o) => {
             if (o?.id) seenOrderIds.current.add(o.id);
           });
           return;
@@ -929,13 +948,10 @@ export default function AdminPage() {
                             Order Items:
                           </span>
                           <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                            {((order.order_items && order.order_items.length > 0)
-                              ? order.order_items
-                              : (order.items || [])
-                            ).map((item, idx) => {
+                            {(order.order_items || order.items || []).map((item, idx) => {
                               const productName = item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || item.product_name || 'Item';
                               const quantity = item.quantity || 1;
-                              const unitPrice = item.unit_price || item.price || 0;
+                              const unitPrice = item.unit_price || item.price_at_time || item.price || 0;
 
                               return (
                                 <div
@@ -973,12 +989,6 @@ export default function AdminPage() {
                                 </div>
                               );
                             })}
-
-                            {(!order.order_items || order.order_items.length === 0) && (!order.items || order.items.length === 0) && (
-                              <div className="text-zinc-500 text-xs italic py-1 px-2 rounded bg-zinc-950/30">
-                                No item breakdown found
-                              </div>
-                            )}
                           </div>
                         </div>
                       </div>

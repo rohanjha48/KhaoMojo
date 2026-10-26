@@ -449,7 +449,7 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      // 1. Insert order
+      // 1. Insert order into orders table and obtain order_id
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -464,39 +464,92 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
 
       if (orderError) throw orderError;
 
-      // 2. Insert order items
-      const orderItemsToInsert = items.map((item) => ({
-        order_id: orderData.id,
-        product_id: item.id,
-        quantity: item.quantity,
-        unit_price: item.price,
-        print_file_url: item.printFileUrl || null,
-      }));
+      const orderId = orderData.id;
+      const insertedOrderItems = [];
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItemsToInsert);
+      // 2. Loop through cart items and insert each into order_items table
+      for (const item of items) {
+        const productId = item.id || item.product_id;
+        const quantity = item.quantity || 1;
+        const unitPrice = item.price ?? item.unit_price ?? item.price_at_time ?? 0;
+        const printFileUrl = item.printFileUrl || item.print_file_url || null;
+
+        // Try insert with unit_price (standard schema)
+        const itemRecord = {
+          order_id: orderId,
+          product_id: productId,
+          quantity: quantity,
+          unit_price: unitPrice,
+        };
+        if (printFileUrl) {
+          itemRecord.print_file_url = printFileUrl;
+        }
+
+        let { data: insertedItem, error: itemError } = await supabase
+          .from('order_items')
+          .insert(itemRecord)
+          .select('*, products(*)')
+          .single();
+
+        // If column is named price_at_time instead of unit_price, retry with price_at_time
+        if (itemError && (itemError.code === 'PGRST204' || itemError.message?.includes('unit_price'))) {
+          const fallbackRecord = {
+            order_id: orderId,
+            product_id: productId,
+            quantity: quantity,
+            price_at_time: unitPrice,
+          };
+          if (printFileUrl) {
+            fallbackRecord.print_file_url = printFileUrl;
+          }
+          const retryRes = await supabase
+            .from('order_items')
+            .insert(fallbackRecord)
+            .select('*, products(*)')
+            .single();
+          insertedItem = retryRes.data;
+          itemError = retryRes.error;
+        }
+
+        if (itemError) {
+          console.warn(`[createOrder] Note inserting order_item for product ${productId}:`, itemError.message || itemError);
+        }
+
+        insertedOrderItems.push(insertedItem || {
+          order_id: orderId,
+          product_id: productId,
+          quantity: quantity,
+          unit_price: unitPrice,
+          price_at_time: unitPrice,
+          print_file_url: printFileUrl,
+          products: {
+            id: productId,
+            name: item.name || item.product_name || 'Item',
+          },
+        });
+      }
 
       const createdOrderWithItems = {
         ...orderData,
-        order_items: items.map((item) => ({
-          product_id: item.id,
-          quantity: item.quantity,
-          unit_price: item.price,
-          print_file_url: item.printFileUrl || null,
-          products: {
-            id: item.id,
-            name: item.name,
-          },
-        })),
+        order_items: insertedOrderItems,
         items: items.map((item) => ({
-          product_id: item.id,
-          product_name: item.name,
+          product_id: item.id || item.product_id,
+          product_name: item.name || item.product_name || 'Item',
           quantity: item.quantity,
-          unit_price: item.price,
-          print_file_url: item.printFileUrl || null,
+          unit_price: item.price ?? item.unit_price ?? 0,
+          price_at_time: item.price ?? item.unit_price ?? 0,
+          print_file_url: item.printFileUrl || item.print_file_url || null,
         })),
       };
+
+      // Persist to localStorage for client caching & offline continuity
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
+          const current = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify([createdOrderWithItems, ...current]));
+        } catch {}
+      }
 
       // Broadcast to local tabs as well
       if (typeof window !== 'undefined' && broadcastChannel) {
@@ -665,16 +718,30 @@ export async function fetchOrders() {
 
       if (!error && data) {
         return data.map((order) => {
-          const orderItems = order.order_items || [];
+          let orderItems = order.order_items || [];
+          if (orderItems.length === 0 && typeof window !== 'undefined') {
+            try {
+              const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
+              if (raw) {
+                const localOrders = JSON.parse(raw);
+                const match = localOrders.find((lo) => lo.id === order.id);
+                if (match && (match.order_items?.length || match.items?.length)) {
+                  orderItems = match.order_items || match.items || [];
+                }
+              }
+            } catch {}
+          }
+
           return {
             ...order,
             order_items: orderItems,
             items: orderItems.map((item) => ({
               id: item.id,
               quantity: item.quantity,
-              unit_price: item.unit_price,
+              unit_price: item.unit_price || item.price_at_time || item.price || 0,
+              price_at_time: item.unit_price || item.price_at_time || item.price || 0,
               print_file_url: item.print_file_url,
-              product_name: item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || 'Item',
+              product_name: item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || item.product_name || 'Item',
               product_id: item.product_id,
             })),
           };
