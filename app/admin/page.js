@@ -986,7 +986,7 @@ export default function AdminPage() {
                       {/* Footer: Total & Status Action Buttons */}
                       <div className="pt-3 border-t border-zinc-800">
                         <div className="flex items-center justify-between mb-3 text-xs">
-                          <span className="text-zinc-400">Total COD / UPI:</span>
+                          <span className="text-zinc-400">Total (Prepaid UPI):</span>
                           <span className="text-base font-bold font-mono text-emerald-400">
                             ₹{Number(order.total_amount).toFixed(0)}
                           </span>

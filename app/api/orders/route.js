@@ -29,7 +29,28 @@ export async function POST(request) {
           hasChatId: Boolean(chatId),
         });
       } else {
-        const text = `🚨 <b>NEW KHAOMOJO ORDER</b>\n\n📍 <b>Room / Location:</b> ${newOrder.room_number || body.roomNumber || 'N/A'}\n👤 <b>Customer:</b> ${newOrder.customer_name || body.customerName || 'N/A'}\n📞 <b>Phone:</b> ${newOrder.phone_number || body.phoneNumber || 'N/A'}\n💰 <b>Total:</b> ₹${Number(newOrder.total_amount || body.totalAmount || 0).toFixed(0)}\n💳 <b>Payment:</b> UPI Prepaid`;
+        const itemsList = body.items || newOrder.order_items || [];
+        const itemsFormatted = itemsList.length > 0
+          ? itemsList
+              .map((it, idx) => `  ${idx + 1}. <b>${it.name || it.product_name || 'Item'}</b> × ${it.quantity || 1} (₹${((it.price || it.unit_price || 0) * (it.quantity || 1)).toFixed(0)})`)
+              .join('\n')
+          : '  No items specified';
+
+        const text = [
+          `🚨 <b>NEW KHAOMOJO ORDER RECEIVED!</b> 🚀`,
+          ``,
+          `📍 <b>Room / Location:</b> <code>${newOrder.room_number || body.roomNumber || 'N/A'}</code>`,
+          `👤 <b>Customer:</b> ${newOrder.customer_name || body.customerName || 'N/A'}`,
+          `📞 <b>Phone:</b> ${newOrder.phone_number || body.phoneNumber || 'N/A'}`,
+          `💳 <b>Payment:</b> <b>UPI Prepaid</b>`,
+          ``,
+          `🛒 <b>Items Ordered:</b>`,
+          itemsFormatted,
+          ``,
+          `💰 <b>Total Amount:</b> <b>₹${Number(newOrder.total_amount || body.totalAmount || 0).toFixed(0)}</b>`,
+          `⏰ <b>Timestamp:</b> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+        ].join('\n');
+
         const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
