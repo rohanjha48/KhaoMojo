@@ -31,7 +31,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
 
   if (!isCartOpen) return null;
 
-  const handleCheckout = async (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setFormError('');
 
@@ -132,6 +132,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
       setIsSubmitting(false);
     }
   };
+  const handleCheckout = handlePlaceOrder;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden animate-in fade-in duration-200">

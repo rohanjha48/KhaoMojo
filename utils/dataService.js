@@ -449,8 +449,8 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      // 1. Insert order into orders table and obtain order_id
-      const { data: orderData, error: orderError } = await supabase
+      // 1. Insert the main order into the orders table with .select().single() to return newly created order
+      const { data: newOrder, error: orderError } = await supabase
         .from('orders')
         .insert({
           customer_name: customerName,
@@ -464,74 +464,84 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
 
       if (orderError) throw orderError;
 
-      const orderId = orderData.id;
-      const insertedOrderItems = [];
+      // 2. Immediately map over the cart items to create the itemsToInsert array
+      const itemsToInsert = items.map((item) => ({
+        order_id: newOrder.id,
+        product_id: item.id || item.product_id,
+        quantity: item.quantity,
+        product_name: item.name || item.product_name,
+        price_at_time: item.price ?? item.unit_price ?? 0,
+        unit_price: item.price ?? item.unit_price ?? 0,
+        ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
+      }));
 
-      // 2. Loop through cart items and insert each into order_items table
-      for (const item of items) {
-        const productId = item.id || item.product_id;
-        const quantity = item.quantity || 1;
-        const unitPrice = item.price ?? item.unit_price ?? item.price_at_time ?? 0;
-        const printFileUrl = item.printFileUrl || item.print_file_url || null;
+      // Try bulk insert with mapped items
+      let { data: insertedItems, error: itemsError } = await supabase
+        .from('order_items')
+        .insert(itemsToInsert)
+        .select('*, products(*)');
 
-        // Try insert with unit_price (standard schema)
-        const itemRecord = {
-          order_id: orderId,
-          product_id: productId,
-          quantity: quantity,
-          unit_price: unitPrice,
-        };
-        if (printFileUrl) {
-          itemRecord.print_file_url = printFileUrl;
-        }
+      // If Postgres rejects unknown columns (like product_name or price_at_time), retry with strict schema fields
+      if (itemsError && (itemsError.code === 'PGRST204' || itemsError.message?.includes('column'))) {
+        const strictSchemaItems = items.map((item) => ({
+          order_id: newOrder.id,
+          product_id: item.id || item.product_id,
+          quantity: item.quantity,
+          unit_price: item.price ?? item.unit_price ?? 0,
+          ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
+        }));
 
-        let { data: insertedItem, error: itemError } = await supabase
+        const retryRes = await supabase
           .from('order_items')
-          .insert(itemRecord)
-          .select('*, products(*)')
-          .single();
+          .insert(strictSchemaItems)
+          .select('*, products(*)');
 
-        // If column is named price_at_time instead of unit_price, retry with price_at_time
-        if (itemError && (itemError.code === 'PGRST204' || itemError.message?.includes('unit_price'))) {
-          const fallbackRecord = {
-            order_id: orderId,
-            product_id: productId,
-            quantity: quantity,
-            price_at_time: unitPrice,
+        insertedItems = retryRes.data;
+        itemsError = retryRes.error;
+      }
+
+      // If bulk insert fails, insert items individually
+      if (itemsError) {
+        console.warn('[createOrder] Bulk order_items insert error, attempting single-item inserts:', itemsError.message || itemsError);
+        insertedItems = [];
+        for (const item of items) {
+          const singlePayload = {
+            order_id: newOrder.id,
+            product_id: item.id || item.product_id,
+            quantity: item.quantity,
+            unit_price: item.price ?? item.unit_price ?? 0,
+            ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
           };
-          if (printFileUrl) {
-            fallbackRecord.print_file_url = printFileUrl;
-          }
-          const retryRes = await supabase
+          const { data: singleItem, error: singleErr } = await supabase
             .from('order_items')
-            .insert(fallbackRecord)
+            .insert(singlePayload)
             .select('*, products(*)')
             .single();
-          insertedItem = retryRes.data;
-          itemError = retryRes.error;
-        }
 
-        if (itemError) {
-          console.warn(`[createOrder] Note inserting order_item for product ${productId}:`, itemError.message || itemError);
+          if (!singleErr && singleItem) {
+            insertedItems.push(singleItem);
+          } else if (singleErr) {
+            console.error(`[createOrder] Failed single item insert for product ${item.id}:`, singleErr.message || singleErr);
+          }
         }
-
-        insertedOrderItems.push(insertedItem || {
-          order_id: orderId,
-          product_id: productId,
-          quantity: quantity,
-          unit_price: unitPrice,
-          price_at_time: unitPrice,
-          print_file_url: printFileUrl,
-          products: {
-            id: productId,
-            name: item.name || item.product_name || 'Item',
-          },
-        });
       }
 
       const createdOrderWithItems = {
-        ...orderData,
-        order_items: insertedOrderItems,
+        ...newOrder,
+        order_items: (insertedItems && insertedItems.length > 0)
+          ? insertedItems
+          : items.map((item) => ({
+              order_id: newOrder.id,
+              product_id: item.id || item.product_id,
+              quantity: item.quantity,
+              unit_price: item.price ?? item.unit_price ?? 0,
+              price_at_time: item.price ?? item.unit_price ?? 0,
+              product_name: item.name || item.product_name,
+              products: {
+                id: item.id || item.product_id,
+                name: item.name || item.product_name,
+              },
+            })),
         items: items.map((item) => ({
           product_id: item.id || item.product_id,
           product_name: item.name || item.product_name || 'Item',
