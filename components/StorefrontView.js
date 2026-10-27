@@ -9,7 +9,7 @@ import OrderSuccessModal from './OrderSuccessModal';
 import ClosedNotice from './ClosedNotice';
 import FloatingCartBar from './FloatingCartBar';
 import { fetchProducts, fetchStoreSettings } from '../utils/dataService';
-import { getSupabase } from '../utils/supabase/client';
+import { supabase, getSupabase } from '../utils/supabase/client';
 import { Search, X, Sparkles, MapPin } from 'lucide-react';
 
 export const SECTIONS_CONFIG = [
@@ -131,62 +131,63 @@ export default function StorefrontView() {
 
   // Store open status strictly managed via React useState
   const [isOpen, setIsOpen] = useState(false);
-  const [isStoreLoading, setIsStoreLoading] = useState(true);
+  const [isChecking, setIsChecking] = useState(true);
 
-  // Client-Side Realtime Subscription for Store Status
+  // Client-Side Polling & Realtime Subscription for Store Status
   useEffect(() => {
-    const supabase = getSupabase();
-    let isMounted = true;
+    const client = supabase || getSupabase();
 
-    // Initial Fetch from store_settings
-    const fetchStatus = async () => {
+    const fetchStoreStatus = async () => {
       try {
-        setIsStoreLoading(true);
-        if (supabase) {
-          const { data, error } = await supabase
+        if (!client) {
+          setIsChecking(false);
+          return;
+        }
+
+        const { data, error } = await client
+          .from('store_settings')
+          .select('is_open')
+          .eq('id', 1)
+          .single();
+          
+        if (data && typeof data.is_open === 'boolean') {
+          setIsOpen(data.is_open);
+        } else if (error) {
+          // If query with id=1 failed, fallback to first row in table
+          const { data: fallbackData } = await client
             .from('store_settings')
             .select('is_open')
-            .single();
+            .limit(1)
+            .maybeSingle();
 
-          if (!error && data && typeof data.is_open === 'boolean') {
-            if (isMounted) setIsOpen(data.is_open);
-            return;
+          if (fallbackData && typeof fallbackData.is_open === 'boolean') {
+            setIsOpen(fallbackData.is_open);
           }
-        }
-        // Fallback to fetchStoreSettings helper
-        const settings = await fetchStoreSettings();
-        if (isMounted && settings && typeof settings.is_open === 'boolean') {
-          setIsOpen(settings.is_open);
         }
       } catch (err) {
         console.error('Failed to fetch store status:', err);
       } finally {
-        if (isMounted) setIsStoreLoading(false);
+        setIsChecking(false);
       }
     };
-    fetchStatus();
 
-    // Supabase Realtime Subscription to store_settings table
+    // Fetch immediately on mount
+    fetchStoreStatus();
+
+    // Bulletproof fallback: Poll every 5 seconds
+    const intervalId = setInterval(fetchStoreStatus, 5000);
+
+    // Fast-path Supabase Realtime subscription
     let subscription = null;
-    if (supabase) {
-      subscription = supabase
+    if (client) {
+      subscription = client
         .channel('store_settings_changes')
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'store_settings' },
-          (payload) => {
-            console.log('[Realtime store_settings UPDATE]:', payload);
-            if (isMounted && payload?.new && typeof payload.new.is_open === 'boolean') {
-              setIsOpen(payload.new.is_open);
-            }
-          }
-        )
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'store_settings' },
           (payload) => {
-            console.log('[Realtime store_settings ALL]:', payload);
-            if (isMounted && payload?.new && typeof payload.new.is_open === 'boolean') {
+            console.log('[Realtime store_settings update]:', payload);
+            if (payload?.new && typeof payload.new.is_open === 'boolean') {
               setIsOpen(payload.new.is_open);
             }
           }
@@ -201,7 +202,6 @@ export default function StorefrontView() {
         bc = new BroadcastChannel('khaomojo_events');
         bc.onmessage = (event) => {
           if (
-            isMounted &&
             event.data?.type === 'STORE_SETTINGS_CHANGED' &&
             typeof event.data.payload?.is_open === 'boolean'
           ) {
@@ -212,9 +212,9 @@ export default function StorefrontView() {
     }
 
     return () => {
-      isMounted = false;
-      if (supabase && subscription) {
-        supabase.removeChannel(subscription);
+      clearInterval(intervalId);
+      if (client && subscription) {
+        client.removeChannel(subscription);
       }
       if (bc) {
         bc.close();
@@ -313,7 +313,7 @@ export default function StorefrontView() {
   return (
     <div className="min-h-screen bg-[#141210] text-[#F5F2EB] flex flex-col font-sans selection:bg-[#FF5500] selection:text-white">
       {/* 1. Compact Top Bar */}
-      <Navbar storeIsOpen={isOpen} isStoreLoading={isStoreLoading} />
+      <Navbar storeIsOpen={isOpen} isStoreLoading={isChecking} />
 
       {/* 2. Main Container: max-w-5xl mx-auto px-3 sm:px-6 pb-28 pt-3 */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 pb-28 pt-3 space-y-3">
