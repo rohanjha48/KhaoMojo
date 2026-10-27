@@ -1,255 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabase/client';
 
-export const INITIAL_PRODUCTS = [
-  // 1. Lay's Collection
-  {
-    id: '11111111-1111-1111-1111-111111110001',
-    name: "Lay's India's Magic Masala",
-    category: 'snack',
-    section_name: "Lay's Collection",
-    price: 20.0,
-    stock_count: 45,
-    image_url: "/blue lay's.jpg",
-    description: "Classic spicy Indian blue Lay's with aromatic spices and herbs.",
-  },
-  {
-    id: '11111111-1111-1111-1111-111111110002',
-    name: "Lay's American Style Cream & Onion",
-    category: 'snack',
-    section_name: "Lay's Collection",
-    price: 20.0,
-    stock_count: 50,
-    image_url: "/American Style .jpeg",
-    description: 'Tangy sour cream blended with savory onion flavor.',
-  },
-  {
-    id: '11111111-1111-1111-1111-111111110003',
-    name: "Lay's Classic Salted",
-    category: 'snack',
-    section_name: "Lay's Collection",
-    price: 20.0,
-    stock_count: 40,
-    image_url: "/Lay's Classic Salted.jpg",
-    description: 'Crispy, golden salted potato chips made with selected potatoes.',
-  },
-  {
-    id: '11111111-1111-1111-1111-111111110004',
-    name: "Lay's Spanish Tomato Tango",
-    category: 'snack',
-    section_name: "Lay's Collection",
-    price: 20.0,
-    stock_count: 35,
-    image_url: "/Lay's Spanish Tomato Tango .jpg",
-    description: 'Sweet and tangy ripe Spanish tomato flavored crispy chips.',
-  },
-
-  // 2. Kurkure Collection
-  {
-    id: '22222222-2222-2222-2222-222222220001',
-    name: 'Kurkure Masala Munch',
-    category: 'snack',
-    section_name: 'Kurkure Collection',
-    price: 20.0,
-    stock_count: 45,
-    image_url: '/Kurkure Masala Munch.jpg',
-    description: 'Desi spiced, Tedha Hai Par Mera Hai crunchy tea-time favorite.',
-  },
-  {
-    id: '22222222-2222-2222-2222-222222220004',
-    name: 'Kurkure Puffcorn',
-    category: 'snack',
-    section_name: 'Kurkure Collection',
-    price: 20.0,
-    stock_count: 40,
-    image_url: '/puffcorn.jpg',
-    description: 'Melt-in-the-mouth light cheesy puffed corn snack.',
-  },
-
-  // 3. Bingo Collection
-  {
-    id: '77777777-7777-7777-7777-777777770001',
-    name: 'Bingo Achaari Masti',
-    category: 'snack',
-    section_name: 'Bingo Collection',
-    price: 20.0,
-    stock_count: 40,
-    image_url: '/Achari.jpg',
-    description: 'Spicy tangy Indian pickle flavored crispy bite triangles.',
-  },
-  {
-    id: '77777777-7777-7777-7777-777777770002',
-    name: 'Bingo Very Peri Peri',
-    category: 'snack',
-    section_name: 'Bingo Collection',
-    price: 20.0,
-    stock_count: 35,
-    image_url: '/very peri peri.jpg',
-    description: 'Fiery peri-peri spice dusted crunchy snack with a punch.',
-  },
-
-  // 4. Soya Sticks
-  {
-    id: '88888888-8888-8888-8888-888888880001',
-    name: 'Soya Sticks (Classic)',
-    category: 'snack',
-    section_name: 'Soya Sticks',
-    price: 20.0,
-    stock_count: 35,
-    image_url: '/soya sticks.jpeg',
-    description: 'High-crunch roasted protein soya sticks with chatpata masala.',
-  },
-
-  // 5. Packed Maggi
-  {
-    id: '33333333-3333-3333-3333-333333330001',
-    name: 'Maggi 2-Minute Noodles',
-    category: 'grocery',
-    section_name: 'Packed Maggi',
-    price: 14.0,
-    stock_count: 60,
-    image_url: '/maggi.jpg',
-    description: 'The indisputable king of 2 AM hostel hunger. Authentic masala tastemaker.',
-  },
-
-  // 6. Fresh Eggs
-  {
-    id: '99999999-9999-9999-9999-999999990001',
-    name: 'Farm Fresh Eggs (Per Piece)',
-    category: 'grocery',
-    section_name: 'Fresh Eggs',
-    price: 8.0,
-    stock_count: 60,
-    image_url: '/egg.png',
-    description: 'Fresh protein-rich poultry egg sold per piece for midnight boiled eggs, bhurji or omelettes.',
-  },
-
-  // 7. Oreo
-  {
-    id: '44444444-4444-4444-4444-444444440001',
-    name: 'Oreo Vanilla Cream Biscuits',
-    category: 'snack',
-    section_name: 'Oreo',
-    price: 30.0,
-    stock_count: 50,
-    image_url: '/oreo.jpg',
-    description: 'Rich dark chocolate biscuit cookies sandwiched with smooth vanilla cream.',
-  },
-
-  // 8. Other Biscuits
-  {
-    id: '55555555-5555-5555-5555-555555550002',
-    name: 'Parle-G',
-    category: 'snack',
-    section_name: 'Other Biscuits',
-    price: 10.0,
-    stock_count: 60,
-    image_url: '/parle-g.jpg',
-    description: 'The legendary glucose biscuit, powering Indian students for generations.',
-  },
-  {
-    id: '55555555-5555-5555-5555-555555550003',
-    name: 'Bourbon Biscuit',
-    category: 'snack',
-    section_name: 'Other Biscuits',
-    price: 25.0,
-    stock_count: 40,
-    image_url: '/Bourbon.jpg',
-    description: 'Crunchy chocolate biscuits with rich chocolate cream filling and sugar crystals.',
-  },
-  {
-    id: '55555555-5555-5555-5555-555555550004',
-    name: 'Milk Bikis',
-    category: 'snack',
-    section_name: 'Other Biscuits',
-    price: 20.0,
-    stock_count: 35,
-    image_url: '/milk-bikis.jpg',
-    description: 'Wholesome milk energy biscuits, the classic childhood chai dunker.',
-  },
-  {
-    id: '55555555-5555-5555-5555-555555550005',
-    name: 'Tiger Biscuit',
-    category: 'snack',
-    section_name: 'Other Biscuits',
-    price: 10.0,
-    stock_count: 50,
-    image_url: '/tiger-biscuit.jpg',
-    description: 'Fortified glucose wheat biscuits for quick midnight study energy.',
-  },
-
-  // 9. Print Services
-  {
-    id: '66666666-6666-6666-6666-666666660001',
-    name: 'Black & White Printout (Per Page)',
-    category: 'print_service',
-    section_name: 'Print Services',
-    price: 3.0,
-    stock_count: 500,
-    image_url: 'https://images.unsplash.com/photo-1589330694653-ded6df03f754?w=600&auto=format&fit=crop&q=80',
-    description: 'Crisp 80 GSM monochrome laser print for assignments, notes & lab manuals.',
-  },
-  {
-    id: '66666666-6666-6666-6666-666666660002',
-    name: 'Color Printout (Per Page)',
-    category: 'print_service',
-    section_name: 'Print Services',
-    price: 10.0,
-    stock_count: 250,
-    image_url: 'https://images.unsplash.com/photo-1562564055-71e051d33c19?w=600&auto=format&fit=crop&q=80',
-    description: 'High-res vivid color laser prints for project submissions, diagrams and posters.',
-  },
-  {
-    id: '66666666-6666-6666-6666-666666660003',
-    name: 'Blank A4 Sheets (Bundle of 10)',
-    category: 'print_service',
-    section_name: 'Print Services',
-    price: 15.0,
-    stock_count: 60,
-    image_url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
-    description: 'Premium JK 75 GSM bright white blank sheets for rough work and drafts.',
-  },
-  {
-    id: 'aaa11111-1111-1111-1111-111111110001',
-    name: 'College PPT Making',
-    category: 'academic_service',
-    section_name: 'Academic & Tech Services',
-    price: 100.0,
-    stock_count: 50,
-    image_url: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&auto=format&fit=crop&q=80',
-    description: 'Custom professional presentation design for college seminars, research topics, and course submissions.',
-  },
-  {
-    id: 'aaa11111-1111-1111-1111-111111110002',
-    name: 'Physics Excel Sheet Making',
-    category: 'academic_service',
-    section_name: 'Academic & Tech Services',
-    price: 100.0,
-    stock_count: 50,
-    image_url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
-    description: 'Formatted lab calculation spreadsheets with customized formulas, graphs, error analysis and tables.',
-  },
-  {
-    id: 'aaa11111-1111-1111-1111-111111110003',
-    name: 'Coding Project',
-    category: 'academic_service',
-    section_name: 'Academic & Tech Services',
-    price: 200.0,
-    stock_count: 30,
-    image_url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
-    description: 'Academic code solutions, minor project architectures, debugging assistance, and prototype builds.',
-  },
-];
-
-const LOCAL_STORAGE_PRODUCTS_KEY = 'khaomojo_products_v5';
-const LOCAL_STORAGE_ORDERS_KEY = 'khaomojo_orders_v5';
-
-// Initialize global memory storage for SSR and API routes
-globalThis.__khaomojo_products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
-if (!globalThis.__khaomojo_orders) {
-  globalThis.__khaomojo_orders = [];
-}
-
-// Create broadcast channel for tab-to-tab realtime sync during local/mock mode
+// Create broadcast channel for tab-to-tab realtime sync
 let broadcastChannel = null;
 if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   try {
@@ -260,50 +11,8 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
 }
 
 /**
- * Helper to purge retired items (e.g. Spiral Binding) and fix updated names (Eggs)
- */
-function sanitizeProductList(list) {
-  if (!Array.isArray(list)) return [...INITIAL_PRODUCTS];
-
-  const fallbackByName = new Map();
-  for (const init of INITIAL_PRODUCTS) {
-    if (init.name) {
-      fallbackByName.set(init.name.toLowerCase().trim(), init);
-    }
-  }
-
-  let res = list
-    .filter((p) => p && !p.name?.toLowerCase().includes('spiral binding') && p.id !== '66666666-6666-6666-6666-666666660004')
-    .map((p) => {
-      const match = fallbackByName.get(p.name?.toLowerCase().trim());
-      let img = p.image_url;
-      const isMissingImage =
-        !img ||
-        img === '/placeholder.png' ||
-        img === '/ppt.jpg' ||
-        img === '/excel.jpg' ||
-        img === '/coding.jpg' ||
-        img === '/print_bw.jpg' ||
-        img === '/print_color.jpg' ||
-        img === '/a4_sheets.jpg';
-
-      if (match && isMissingImage) {
-        img = match.image_url || img;
-      }
-
-      return {
-        ...p,
-        image_url: img,
-        section_name: p.section_name || match?.section_name || p.category,
-        description: p.description || match?.description || '',
-      };
-    });
-
-  return res;
-}
-
-/**
- * Get products list
+ * Get products list strictly from Supabase products table
+ * Never returns hardcoded dummy arrays or old fallback prices.
  */
 export async function fetchProducts() {
   const supabase = getSupabase();
@@ -313,42 +22,21 @@ export async function fetchProducts() {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .order('category', { ascending: true })
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.warn('Supabase fetch products error, falling back:', error.message);
-      } else if (data && data.length > 0) {
-        return sanitizeProductList(data);
+        console.error('[fetchProducts] Supabase fetch error:', error.message);
+        return [];
+      } else if (Array.isArray(data)) {
+        return data;
       }
     } catch (err) {
-      console.warn('Supabase fetch exception:', err);
+      console.error('[fetchProducts] Supabase exception:', err);
+      return [];
     }
   }
 
-  // Fallback to local storage or initial products
-  if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
-    if (cached) {
-      try {
-        const sanitized = sanitizeProductList(JSON.parse(cached));
-        localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(sanitized));
-        return sanitized;
-      } catch {
-        // ignore parse error
-      }
-    }
-    // Clean old storage versions
-    try {
-      localStorage.removeItem('khaomojo_products_v3');
-    } catch {
-      // ignore
-    }
-    // Initialize in localStorage
-    localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
-  }
-
-  return INITIAL_PRODUCTS;
+  return [];
 }
 
 /**
@@ -367,26 +55,14 @@ export async function updateProductDetails(productId, updates) {
         .single();
 
       if (!error && data) {
+        if (broadcastChannel) {
+          broadcastChannel.postMessage({ type: 'PRODUCT_UPDATED', payload: data });
+        }
         return data;
       }
-      console.warn('Supabase update product error:', error?.message);
+      console.error('[updateProductDetails] Supabase update product error:', error?.message);
     } catch (err) {
-      console.warn('Supabase update product exception:', err);
-    }
-  }
-
-  // Local storage update
-  if (typeof window !== 'undefined') {
-    const raw = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
-    const list = raw ? JSON.parse(raw) : [...INITIAL_PRODUCTS];
-    const index = list.findIndex((p) => p.id === productId);
-    if (index !== -1) {
-      list[index] = { ...list[index], ...updates };
-      localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(list));
-      if (broadcastChannel) {
-        broadcastChannel.postMessage({ type: 'PRODUCT_UPDATED', payload: list[index] });
-      }
-      return list[index];
+      console.error('[updateProductDetails] Supabase update product exception:', err);
     }
   }
 
@@ -394,7 +70,7 @@ export async function updateProductDetails(productId, updates) {
 }
 
 /**
- * Upload print file to Supabase storage or simulate local object URL
+ * Upload print file to Supabase storage or return object URL
  */
 export async function uploadPrintDocument(file) {
   const supabase = getSupabase();
@@ -421,19 +97,19 @@ export async function uploadPrintDocument(file) {
           fileSize: file.size,
         };
       }
-      console.warn('Supabase storage upload error:', error?.message);
+      console.warn('[uploadPrintDocument] Supabase storage upload error:', error?.message);
     } catch (err) {
-      console.warn('Supabase storage upload exception:', err);
+      console.warn('[uploadPrintDocument] Supabase storage upload exception:', err);
     }
   }
 
-  // Simulation: Convert to Data URL or Blob URL for instant local preview/download
+  // Local fallback object preview
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => {
       resolve({
         fileName: file.name,
-        url: reader.result, // base64 data url
+        url: reader.result,
         fileSize: file.size,
       });
     };
@@ -442,206 +118,90 @@ export async function uploadPrintDocument(file) {
 }
 
 /**
- * Submit a customer order with items
+ * Submit a customer order with items strictly inserting into Supabase
  */
 export async function createOrder({ customerName, roomNumber, phoneNumber, items, totalAmount }) {
   const supabase = getSupabase();
 
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      // 1. Insert the main order into the orders table with .select().single() to return newly created order
-      const { data: newOrder, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          customer_name: customerName,
-          room_number: roomNumber,
-          phone_number: phoneNumber,
-          total_amount: totalAmount,
-          status: 'pending',
-        })
-        .select()
-        .single();
+  if (!isSupabaseConfigured() || !supabase) {
+    console.error('[createOrder] Supabase client is not configured.');
+    throw new Error('Supabase client is not configured.');
+  }
 
-      if (orderError) throw orderError;
+  // Step 1: Insert Order and GET the returned ID
+  const { data: orderData, error: orderError } = await supabase
+    .from('orders')
+    .insert([{
+      customer_name: customerName,
+      room_number: roomNumber,
+      phone_number: phoneNumber,
+      total_amount: totalAmount,
+      status: 'pending',
+    }])
+    .select()
+    .single();
 
-      // 2. Immediately map over the cart items to create the itemsToInsert array
-      const itemsToInsert = items.map((item) => ({
-        order_id: newOrder.id,
-        product_id: item.id || item.product_id,
+  if (orderError || !orderData) {
+    console.error("Failed to insert order:", orderError);
+    throw orderError || new Error("Failed to insert order");
+  }
+
+  // Step 2: Map cart items using the NEW orderData.id
+  const cart = items || [];
+  const itemsToInsert = cart.map(item => ({
+    order_id: orderData.id,
+    product_id: item.id,
+    product_name: item.name || item.title,
+    quantity: item.quantity,
+    price_at_time: item.price
+  }));
+
+  // Step 3: Insert into order_items
+  let { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+
+  if (itemsError) {
+    console.error("Failed to insert items:", itemsError);
+    // Schema fallback: if Postgres schema requires unit_price or does not yet have product_name/price_at_time
+    if (itemsError.code === 'PGRST204' || itemsError.code === '23502' || itemsError.message?.includes('column')) {
+      const fallbackItems = cart.map(item => ({
+        order_id: orderData.id,
+        product_id: item.id,
         quantity: item.quantity,
-        product_name: item.name || item.product_name,
-        price_at_time: item.price ?? item.unit_price ?? 0,
-        unit_price: item.price ?? item.unit_price ?? 0,
+        unit_price: item.price,
         ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
       }));
-
-      // Try bulk insert with mapped items
-      let { data: insertedItems, error: itemsError } = await supabase
-        .from('order_items')
-        .insert(itemsToInsert)
-        .select('*, products(*)');
-
-      // If Postgres rejects unknown columns (like product_name or price_at_time), retry with strict schema fields
-      if (itemsError && (itemsError.code === 'PGRST204' || itemsError.message?.includes('column'))) {
-        const strictSchemaItems = items.map((item) => ({
-          order_id: newOrder.id,
-          product_id: item.id || item.product_id,
-          quantity: item.quantity,
-          unit_price: item.price ?? item.unit_price ?? 0,
-          ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
-        }));
-
-        const retryRes = await supabase
-          .from('order_items')
-          .insert(strictSchemaItems)
-          .select('*, products(*)');
-
-        insertedItems = retryRes.data;
-        itemsError = retryRes.error;
+      const retryRes = await supabase.from('order_items').insert(fallbackItems);
+      if (retryRes.error) {
+        console.error("Fallback items insert failed:", retryRes.error);
+      } else {
+        itemsError = null;
       }
-
-      // If bulk insert fails, insert items individually
-      if (itemsError) {
-        console.warn('[createOrder] Bulk order_items insert error, attempting single-item inserts:', itemsError.message || itemsError);
-        insertedItems = [];
-        for (const item of items) {
-          const singlePayload = {
-            order_id: newOrder.id,
-            product_id: item.id || item.product_id,
-            quantity: item.quantity,
-            unit_price: item.price ?? item.unit_price ?? 0,
-            ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
-          };
-          const { data: singleItem, error: singleErr } = await supabase
-            .from('order_items')
-            .insert(singlePayload)
-            .select('*, products(*)')
-            .single();
-
-          if (!singleErr && singleItem) {
-            insertedItems.push(singleItem);
-          } else if (singleErr) {
-            console.error(`[createOrder] Failed single item insert for product ${item.id}:`, singleErr.message || singleErr);
-          }
-        }
-      }
-
-      const createdOrderWithItems = {
-        ...newOrder,
-        order_items: (insertedItems && insertedItems.length > 0)
-          ? insertedItems
-          : items.map((item) => ({
-              order_id: newOrder.id,
-              product_id: item.id || item.product_id,
-              quantity: item.quantity,
-              unit_price: item.price ?? item.unit_price ?? 0,
-              price_at_time: item.price ?? item.unit_price ?? 0,
-              product_name: item.name || item.product_name,
-              products: {
-                id: item.id || item.product_id,
-                name: item.name || item.product_name,
-              },
-            })),
-        items: items.map((item) => ({
-          product_id: item.id || item.product_id,
-          product_name: item.name || item.product_name || 'Item',
-          quantity: item.quantity,
-          unit_price: item.price ?? item.unit_price ?? 0,
-          price_at_time: item.price ?? item.unit_price ?? 0,
-          print_file_url: item.printFileUrl || item.print_file_url || null,
-        })),
-      };
-
-      // Persist to localStorage for client caching & offline continuity
-      if (typeof window !== 'undefined') {
-        try {
-          const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
-          const current = raw ? JSON.parse(raw) : [];
-          localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify([createdOrderWithItems, ...current]));
-        } catch {}
-      }
-
-      // Broadcast to local tabs as well
-      if (typeof window !== 'undefined' && broadcastChannel) {
-        broadcastChannel.postMessage({ type: 'ORDER_CREATED', payload: createdOrderWithItems });
-      }
-
-      return createdOrderWithItems;
-    } catch (err) {
-      console.warn('Supabase createOrder error, utilizing client fallback:', err);
     }
   }
 
-  // Local/Offline Fallback simulation
-  const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const newOrder = {
-    id: orderId,
-    customer_name: customerName,
-    room_number: roomNumber,
-    phone_number: phoneNumber,
-    total_amount: totalAmount,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-    order_items: items.map((item) => ({
-      id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-      order_id: orderId,
-      product_id: item.id,
-      quantity: item.quantity,
-      unit_price: item.price,
-      print_file_url: item.printFileUrl || null,
-      products: {
-        id: item.id,
-        name: item.name,
-      },
-    })),
-    items: items.map((item) => ({
-      id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-      order_id: orderId,
-      product_id: item.id,
-      product_name: item.name,
-      quantity: item.quantity,
-      unit_price: item.price,
-      print_file_url: item.printFileUrl || null,
-      print_file_name: item.printFileName || null,
+  const completeOrder = {
+    ...orderData,
+    order_items: cart.map(it => ({
+      order_id: orderData.id,
+      product_id: it.id,
+      product_name: it.name || it.title,
+      quantity: it.quantity,
+      price_at_time: it.price,
+      unit_price: it.price,
+      products: { id: it.id, name: it.name || it.title },
     })),
   };
 
-  if (typeof window !== 'undefined') {
-    // 1. Save order to localStorage
-    const rawOrders = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
-    const orderList = rawOrders ? JSON.parse(rawOrders) : [];
-    orderList.unshift(newOrder);
-    localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(orderList));
-
-    // 2. Deduct product stock locally to mimic Postgres trigger
-    const rawProducts = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
-    const prodList = rawProducts ? JSON.parse(rawProducts) : [...INITIAL_PRODUCTS];
-    items.forEach((item) => {
-      const p = prodList.find((x) => x.id === item.id);
-      if (p) {
-        p.stock_count = Math.max(0, (p.stock_count || 0) - item.quantity);
-      }
-    });
-    localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(prodList));
-
-    // 3. Broadcast to all open tabs (storefront + admin)
-    if (broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'ORDER_CREATED', payload: newOrder });
-      broadcastChannel.postMessage({ type: 'PRODUCTS_UPDATED', payload: prodList });
-    }
-    // 4. Save to server global memory
-    if (globalThis.__khaomojo_orders) {
-      globalThis.__khaomojo_orders.unshift(newOrder);
-    }
-  } else if (globalThis.__khaomojo_orders) {
-    globalThis.__khaomojo_orders.unshift(newOrder);
+  if (broadcastChannel && typeof window !== 'undefined') {
+    broadcastChannel.postMessage({ type: 'ORDER_CREATED', payload: completeOrder });
   }
 
-  return newOrder;
+  return completeOrder;
 }
 
 /**
- * Fetch store settings (id = 1) from Supabase or fallback
+ * Fetch store settings (id = 1) strictly from Supabase store_settings table
+ * Defaults strictly to false until DB confirms it is open.
  */
 export async function fetchStoreSettings() {
   const supabase = getSupabase();
@@ -654,29 +214,19 @@ export async function fetchStoreSettings() {
         .eq('id', 1)
         .maybeSingle();
 
-      if (!error && data) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('khaomojo_store_settings_is_open', String(data.is_open));
-        }
-        return { id: 1, is_open: Boolean(data.is_open) };
+      if (!error && data && typeof data.is_open === 'boolean') {
+        return { id: 1, is_open: data.is_open };
       }
-      if (error && error.code !== 'PGRST116') {
-        console.warn('Supabase fetch store_settings error:', error.message);
+      if (error) {
+        console.error('[fetchStoreSettings] Supabase error:', error.message);
       }
     } catch (err) {
-      console.warn('Supabase fetch store_settings exception:', err);
+      console.error('[fetchStoreSettings] Supabase exception:', err);
     }
   }
 
-  // Local fallback
-  if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem('khaomojo_store_settings_is_open');
-    if (cached !== null) {
-      return { id: 1, is_open: cached === 'true' };
-    }
-  }
-
-  return { id: 1, is_open: true };
+  // Must default to false until the DB confirms it is open
+  return { id: 1, is_open: false };
 }
 
 /**
@@ -686,11 +236,8 @@ export async function updateStoreSettings(isOpen) {
   const supabase = getSupabase();
   const nextOpen = Boolean(isOpen);
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('khaomojo_store_settings_is_open', String(nextOpen));
-    if (broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'STORE_SETTINGS_CHANGED', payload: { id: 1, is_open: nextOpen } });
-    }
+  if (typeof window !== 'undefined' && broadcastChannel) {
+    broadcastChannel.postMessage({ type: 'STORE_SETTINGS_CHANGED', payload: { id: 1, is_open: nextOpen } });
   }
 
   if (isSupabaseConfigured() && supabase) {
@@ -704,9 +251,9 @@ export async function updateStoreSettings(isOpen) {
       if (!error && data) {
         return { id: 1, is_open: Boolean(data.is_open) };
       }
-      console.warn('Supabase update store_settings error:', error?.message);
+      console.error('[updateStoreSettings] Supabase update store_settings error:', error?.message);
     } catch (err) {
-      console.warn('Supabase update store_settings exception:', err);
+      console.error('[updateStoreSettings] Supabase update store_settings exception:', err);
     }
   }
 
@@ -714,7 +261,7 @@ export async function updateStoreSettings(isOpen) {
 }
 
 /**
- * Fetch all orders (Admin function)
+ * Fetch all orders strictly from Supabase (Admin function)
  */
 export async function fetchOrders() {
   const supabase = getSupabase();
@@ -726,85 +273,35 @@ export async function fetchOrders() {
         .select('*, order_items(*, products(*))')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
+      if (!error && Array.isArray(data)) {
         return data.map((order) => {
-          let orderItems = order.order_items || [];
-          if (orderItems.length === 0 && typeof window !== 'undefined') {
-            try {
-              const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
-              if (raw) {
-                const localOrders = JSON.parse(raw);
-                const match = localOrders.find((lo) => lo.id === order.id);
-                if (match && (match.order_items?.length || match.items?.length)) {
-                  orderItems = match.order_items || match.items || [];
-                }
-              }
-            } catch {}
-          }
-
+          const orderItems = order.order_items || [];
           return {
             ...order,
             order_items: orderItems,
             items: orderItems.map((item) => ({
               id: item.id,
               quantity: item.quantity,
-              unit_price: item.unit_price || item.price_at_time || item.price || 0,
-              price_at_time: item.unit_price || item.price_at_time || item.price || 0,
+              unit_price: item.price_at_time ?? item.unit_price ?? item.price ?? 0,
+              price_at_time: item.price_at_time ?? item.unit_price ?? item.price ?? 0,
               print_file_url: item.print_file_url,
-              product_name: item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || item.product_name || 'Item',
+              product_name: item.product_name || item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || 'Item',
               product_id: item.product_id,
             })),
           };
         });
       }
-      console.warn('Supabase fetch orders error:', error?.message);
+      console.error('[fetchOrders] Supabase fetch orders error:', error?.message);
     } catch (err) {
-      console.warn('Supabase fetch orders exception:', err);
+      console.error('[fetchOrders] Supabase fetch orders exception:', err);
     }
   }
 
-  // Local fallback
-  if (typeof window !== 'undefined') {
-    const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        return parsed.map((order) => ({
-          ...order,
-          order_items: order.order_items || (order.items || []).map((it) => ({
-            id: it.id,
-            quantity: it.quantity,
-            unit_price: it.unit_price || it.price,
-            print_file_url: it.print_file_url,
-            products: {
-              id: it.product_id || it.id,
-              name: it.product_name || it.name,
-            },
-          })),
-        }));
-      } catch {
-        // ignore parse error
-      }
-    }
-  }
-
-  return (globalThis.__khaomojo_orders || []).map((order) => ({
-    ...order,
-    order_items: order.order_items || (order.items || []).map((it) => ({
-      id: it.id,
-      quantity: it.quantity,
-      unit_price: it.unit_price || it.price,
-      print_file_url: it.print_file_url,
-      products: {
-        id: it.product_id || it.id,
-        name: it.product_name || it.name,
-      },
-    })),
-  }));
+  return [];
 }
 
 /**
- * Update order status (pending -> processing -> delivered -> cancelled)
+ * Update order status in Supabase (Admin function)
  */
 export async function updateOrderStatus(orderId, newStatus) {
   const supabase = getSupabase();
@@ -819,26 +316,14 @@ export async function updateOrderStatus(orderId, newStatus) {
         .single();
 
       if (!error && data) {
+        if (broadcastChannel && typeof window !== 'undefined') {
+          broadcastChannel.postMessage({ type: 'ORDER_STATUS_CHANGED', payload: data });
+        }
         return data;
       }
-      console.warn('Supabase update order error:', error?.message);
+      console.error('[updateOrderStatus] Supabase update order error:', error?.message);
     } catch (err) {
-      console.warn('Supabase update order exception:', err);
-    }
-  }
-
-  // Local fallback
-  if (typeof window !== 'undefined') {
-    const raw = localStorage.getItem(LOCAL_STORAGE_ORDERS_KEY);
-    const orderList = raw ? JSON.parse(raw) : [];
-    const index = orderList.findIndex((o) => o.id === orderId);
-    if (index !== -1) {
-      orderList[index].status = newStatus;
-      localStorage.setItem(LOCAL_STORAGE_ORDERS_KEY, JSON.stringify(orderList));
-      if (broadcastChannel) {
-        broadcastChannel.postMessage({ type: 'ORDER_STATUS_CHANGED', payload: orderList[index] });
-      }
-      return orderList[index];
+      console.error('[updateOrderStatus] Supabase update order exception:', err);
     }
   }
 
@@ -851,7 +336,6 @@ export async function updateOrderStatus(orderId, newStatus) {
 export function subscribeToRealtime({ onOrderChange, onProductChange, onStoreSettingsChange }) {
   const supabase = getSupabase();
 
-  // 1. Supabase Realtime Subscription if configured
   let supabaseChannel = null;
   if (isSupabaseConfigured() && supabase) {
     try {
@@ -862,7 +346,6 @@ export function subscribeToRealtime({ onOrderChange, onProductChange, onStoreSet
           'postgres_changes',
           { event: '*', schema: 'public', table: 'orders' },
           (payload) => {
-            console.log('[Supabase Realtime Order Event]:', payload.eventType, payload.new?.id);
             if (onOrderChange) onOrderChange(payload);
           }
         )
@@ -870,7 +353,6 @@ export function subscribeToRealtime({ onOrderChange, onProductChange, onStoreSet
           'postgres_changes',
           { event: '*', schema: 'public', table: 'products' },
           (payload) => {
-            console.log('[Supabase Realtime Product Event]:', payload.eventType, payload.new?.name);
             if (onProductChange) onProductChange(payload);
           }
         )
@@ -878,15 +360,14 @@ export function subscribeToRealtime({ onOrderChange, onProductChange, onStoreSet
           'postgres_changes',
           { event: '*', schema: 'public', table: 'store_settings' },
           (payload) => {
-            console.log('[Supabase Realtime Store Settings Event]:', payload.eventType, payload.new);
             if (onStoreSettingsChange) onStoreSettingsChange(payload);
           }
         )
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
-            console.log(`[Supabase Realtime] Successfully subscribed to orders channel (${channelId})`);
+            console.log(`[Supabase Realtime] Subscribed to channel ${channelId}`);
           } else if (err) {
-            console.warn(`[Supabase Realtime] Subscription status: ${status}`, err);
+            console.warn(`[Supabase Realtime] Status: ${status}`, err);
           }
         });
     } catch (err) {
@@ -894,7 +375,6 @@ export function subscribeToRealtime({ onOrderChange, onProductChange, onStoreSet
     }
   }
 
-  // 2. BroadcastChannel for local/multi-tab sync
   const handleBroadcastMessage = (event) => {
     const { type, payload } = event.data || {};
     if (type === 'ORDER_CREATED' && onOrderChange) {
@@ -908,16 +388,15 @@ export function subscribeToRealtime({ onOrderChange, onProductChange, onStoreSet
     }
   };
 
-  if (broadcastChannel) {
+  if (broadcastChannel && typeof window !== 'undefined') {
     broadcastChannel.addEventListener('message', handleBroadcastMessage);
   }
 
-  // Cleanup function
   return () => {
     if (supabaseChannel && supabase) {
       supabase.removeChannel(supabaseChannel);
     }
-    if (broadcastChannel) {
+    if (broadcastChannel && typeof window !== 'undefined') {
       broadcastChannel.removeEventListener('message', handleBroadcastMessage);
     }
   };

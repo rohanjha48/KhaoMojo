@@ -35,8 +35,10 @@ CREATE TABLE IF NOT EXISTS order_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    product_name TEXT,
     quantity INTEGER NOT NULL CHECK (quantity > 0),
-    unit_price NUMERIC(10, 2) NOT NULL CHECK (unit_price >= 0),
+    price_at_time NUMERIC(10, 2),
+    unit_price NUMERIC(10, 2),
     print_file_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -44,13 +46,13 @@ CREATE TABLE IF NOT EXISTS order_items (
 -- Table: store_settings
 CREATE TABLE IF NOT EXISTS store_settings (
     id INT PRIMARY KEY,
-    is_open BOOLEAN DEFAULT true,
+    is_open BOOLEAN DEFAULT false,
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Insert single default row with id = 1
+-- Insert single default row with id = 1 defaulting to closed (false)
 INSERT INTO store_settings (id, is_open)
-VALUES (1, true)
+VALUES (1, false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Indexes for performance (handling 500+ concurrent users smoothly)

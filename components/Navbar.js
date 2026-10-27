@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Shield, ShoppingBag } from 'lucide-react';
 import { useCart } from './CartContext';
 
-export default function Navbar({ storeIsOpen = true }) {
+export default function Navbar({ storeIsOpen = false, isStoreLoading = false }) {
   const { totalItems, totalAmount, setIsCartOpen } = useCart();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -40,7 +40,12 @@ export default function Navbar({ storeIsOpen = true }) {
         <div className="flex items-center gap-2">
           {/* Compact Live Status Pill */}
           <div className="bg-[#1F1C18] border border-[#2E2924] px-2.5 py-1 rounded-full text-xs flex items-center gap-1.5 select-none">
-            {storeIsOpen ? (
+            {isStoreLoading ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                <span className="text-[#A8A29E] font-medium text-[11px]">Checking...</span>
+              </>
+            ) : storeIsOpen ? (
               <>
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span className="text-[#F5F2EB] font-medium">Open Now</span>

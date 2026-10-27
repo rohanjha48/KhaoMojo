@@ -13,9 +13,9 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     const { roomNumber, customerName, phoneNumber, items, totalAmount, orderId } = body || {};
 
-    // Read bot token and chat ID from environment variables
-    const rawBotToken = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN;
-    const rawChatId = process.env.TELEGRAM_CHAT_ID || process.env.CHAT_ID;
+    // Read bot token and chat ID from environment variables (supporting standard and NEXT_PUBLIC prefixes)
+    const rawBotToken = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+    const rawChatId = process.env.TELEGRAM_CHAT_ID || process.env.CHAT_ID || process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
 
     const botToken = (rawBotToken || '').trim().replace(/^["']|["']$/g, '');
     const chatId = (rawChatId || '').trim().replace(/^["']|["']$/g, '');
@@ -88,6 +88,7 @@ export async function POST(request) {
           text: message,
           parse_mode: 'HTML',
         }),
+        signal: AbortSignal.timeout(8000),
       });
 
       const data = await response.json();

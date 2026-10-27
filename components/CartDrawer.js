@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCart } from './CartContext';
-import { createOrder } from '../utils/dataService';
+import { getSupabase } from '../utils/supabase/client';
 import { playChime } from '../utils/audio';
 
-export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
+export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
   const { 
     items, 
     isCartOpen, 
@@ -62,37 +62,83 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
 
     try {
       setIsSubmitting(true);
+      const supabase = getSupabase();
 
-      const orderPayload = {
-        customerName: customerName.trim(),
-        roomNumber: roomNumber.trim(),
-        phoneNumber: phoneNumber.trim(),
-        paymentMethod: 'UPI Prepaid',
-        items: items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          printFileUrl: item.printFileUrl || null,
-          printFileName: item.printFileName || null,
-        })),
-        totalAmount: Number(totalAmount.toFixed(2)),
-      };
+      if (!supabase) {
+        setFormError('Database connection unavailable. Please check your connection.');
+        return;
+      }
 
-      const placedOrder = await createOrder(orderPayload);
+      const cart = items;
 
-      // Trigger Telegram Notification (await to prevent mobile/Vercel browser request drops)
+      // Step 1: Insert Order and GET the returned ID
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert([{
+          customer_name: customerName.trim(),
+          room_number: roomNumber.trim(),
+          phone_number: phoneNumber.trim(),
+          total_amount: Number(totalAmount.toFixed(2)),
+          status: 'pending',
+        }])
+        .select()
+        .single();
+
+      if (orderError || !orderData) {
+        console.error("Failed to insert order:", orderError);
+        setFormError(orderError?.message || "Failed to insert order");
+        return; 
+      }
+
+      // Step 2: Map cart items using the NEW orderData.id
+      const itemsToInsert = cart.map(item => ({
+        order_id: orderData.id,
+        product_id: item.id,
+        product_name: item.name || item.title,
+        quantity: item.quantity,
+        price_at_time: item.price
+      }));
+
+      // Step 3: Insert into order_items
+      let { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+
+      if (itemsError) {
+        console.error("Failed to insert items:", itemsError);
+        // Schema fallback: if Postgres schema requires unit_price or does not yet have product_name/price_at_time
+        if (itemsError.code === 'PGRST204' || itemsError.code === '23502' || itemsError.message?.includes('column')) {
+          const fallbackItems = cart.map(item => ({
+            order_id: orderData.id,
+            product_id: item.id,
+            quantity: item.quantity,
+            unit_price: item.price,
+            ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
+          }));
+          const retryRes = await supabase.from('order_items').insert(fallbackItems);
+          if (retryRes.error) {
+            console.error("Fallback items insert failed:", retryRes.error);
+          } else {
+            itemsError = null;
+          }
+        }
+      }
+
+      // 3. Trigger Telegram Notification
       try {
         const notifyRes = await fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            roomNumber: orderPayload.roomNumber,
-            customerName: orderPayload.customerName,
-            phoneNumber: orderPayload.phoneNumber,
-            items: orderPayload.items,
-            totalAmount: orderPayload.totalAmount,
-            orderId: placedOrder?.id,
+            roomNumber: roomNumber.trim(),
+            customerName: customerName.trim(),
+            phoneNumber: phoneNumber.trim(),
+            items: cart.map(it => ({
+              id: it.id,
+              name: it.name || it.title,
+              price: it.price,
+              quantity: it.quantity,
+            })),
+            totalAmount: Number(totalAmount.toFixed(2)),
+            orderId: orderData.id,
           }),
         });
         const notifyData = await notifyRes.json().catch(() => ({}));
@@ -105,7 +151,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
         console.error('[CartDrawer] Failed to dispatch Telegram notification:', notifyErr);
       }
 
-      // Play success chime & launch celebratory confetti
+      // 4. Play success chime & celebratory confetti
       playChime('success');
       try {
         confetti({
@@ -118,12 +164,12 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = true }) {
         // ignore confetti errors
       }
 
-      // Clear cart
+      // 5. Clear cart and close drawer
       clearCart();
       setIsCartOpen(false);
 
       if (onOrderSuccess) {
-        onOrderSuccess(placedOrder);
+        onOrderSuccess(orderData);
       }
     } catch (err) {
       console.error('Checkout failed:', err);

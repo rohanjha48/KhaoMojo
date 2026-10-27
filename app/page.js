@@ -129,7 +129,8 @@ export default function StorefrontPage() {
   const [lastPlacedOrder, setLastPlacedOrder] = useState(null);
 
   // Store open status strictly read from store_settings table
-  const [storeIsOpen, setStoreIsOpen] = useState(true);
+  const [storeIsOpen, setStoreIsOpen] = useState(false);
+  const [isStoreLoading, setIsStoreLoading] = useState(true);
 
   // Load store open status from store_settings table & subscribe to realtime changes
   useEffect(() => {
@@ -137,12 +138,18 @@ export default function StorefrontPage() {
 
     async function loadSettings() {
       try {
+        setIsStoreLoading(true);
         const settings = await fetchStoreSettings();
-        if (isMounted && settings) {
-          setStoreIsOpen(Boolean(settings.is_open));
+        if (isMounted && settings && typeof settings.is_open === 'boolean') {
+          setStoreIsOpen(settings.is_open);
+        } else if (isMounted) {
+          setStoreIsOpen(false);
         }
       } catch (err) {
         console.error('Failed to load store settings:', err);
+        if (isMounted) setStoreIsOpen(false);
+      } finally {
+        if (isMounted) setIsStoreLoading(false);
       }
     }
 
@@ -194,10 +201,13 @@ export default function StorefrontPage() {
         setLoading(true);
         const data = await fetchProducts();
         if (isMounted) {
-          setProducts(data);
+          setProducts(data || []);
         }
       } catch (err) {
         console.error('Failed to load products:', err);
+        if (isMounted) {
+          setProducts([]);
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -239,7 +249,7 @@ export default function StorefrontPage() {
   return (
     <div className="min-h-screen bg-[#141210] text-[#F5F2EB] flex flex-col font-sans selection:bg-[#FF5500] selection:text-white">
       {/* 1. Compact Top Bar */}
-      <Navbar storeIsOpen={storeIsOpen} />
+      <Navbar storeIsOpen={storeIsOpen} isStoreLoading={isStoreLoading} />
 
       {/* 2. Main Container: max-w-5xl mx-auto px-3 sm:px-6 pb-28 pt-3 */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 pb-28 pt-3 space-y-3">
@@ -353,9 +363,32 @@ export default function StorefrontPage() {
                 </div>
               ))}
             </div>
+          ) : products.length === 0 ? (
+            <div className="p-8 sm:p-12 rounded-2xl bg-[#1F1C18] border border-[#2E2924] text-center space-y-3">
+              <div className="h-10 w-10 mx-auto rounded-xl bg-[#292520] border border-[#2E2924] flex items-center justify-center text-[#A8A29E]">
+                <Sparkles className="w-5 h-5 text-[#FF5500]" />
+              </div>
+              <h3 className="text-sm font-bold text-[#F5F2EB]">No Products Available</h3>
+              <p className="text-xs text-[#A8A29E] max-w-sm mx-auto">
+                No items are currently listed in the store inventory. Please check back shortly or refresh.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  fetchProducts().then((res) => {
+                    setProducts(res || []);
+                    setLoading(false);
+                  });
+                }}
+                className="mt-2 px-3.5 py-1.5 rounded-lg bg-[#292520] hover:bg-[#38332C] text-xs font-semibold text-[#F5F2EB] border border-[#2E2924] transition-colors cursor-pointer"
+              >
+                Refresh Inventory
+              </button>
+            </div>
           ) : groupedSections.length === 0 ? (
             <div className="p-8 sm:p-12 rounded-2xl bg-[#1F1C18] border border-[#2E2924] text-center space-y-3">
-              <h3 className="text-sm font-bold text-[#F5F2EB]">No items found</h3>
+              <h3 className="text-sm font-bold text-[#F5F2EB]">No matching items</h3>
               <p className="text-xs text-[#A8A29E]">
                 {searchQuery
                   ? `No products matched "${searchQuery}".`

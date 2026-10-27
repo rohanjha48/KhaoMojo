@@ -49,8 +49,8 @@ export default function AdminPage() {
     return false;
   });
 
-  // Store Settings State (Open / Closed toggle moved to admin)
-  const [storeIsOpen, setStoreIsOpen] = useState(true);
+  // Store Settings State (strictly loaded from Supabase store_settings)
+  const [storeIsOpen, setStoreIsOpen] = useState(false);
   const [isTogglingStore, setIsTogglingStore] = useState(false);
 
   // Order History Filter & Search State
