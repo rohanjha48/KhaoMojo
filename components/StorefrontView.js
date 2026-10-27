@@ -136,7 +136,8 @@ export default function StorefrontView() {
   useEffect(() => {
     const client = supabase || getSupabase();
 
-    const checkStoreStatus = async () => {
+    // 1. Single initial fetch
+    const fetchStatus = async () => {
       if (!client) {
         setIsChecking(false);
         return;
@@ -148,7 +149,7 @@ export default function StorefrontView() {
           .select('is_open')
           .eq('id', 1)
           .single();
-        
+
         if (data && typeof data.is_open === 'boolean') {
           setIsStoreOpen(data.is_open);
         } else if (error) {
@@ -170,20 +171,16 @@ export default function StorefrontView() {
       }
     };
 
-    // Check immediately
-    checkStoreStatus();
-    
-    // Poll every 3 seconds to bypass all Next.js caches
-    const interval = setInterval(checkStoreStatus, 3000);
+    fetchStatus();
 
-    // Supabase Realtime subscription for instant updates
+    // 2. Subscribe to realtime changes (single persistent WebSocket connection)
     let subscription = null;
     if (client) {
       subscription = client
-        .channel('store_settings_changes')
+        .channel('store-status')
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'store_settings' },
+          { event: 'UPDATE', schema: 'public', table: 'store_settings', filter: 'id=eq.1' },
           (payload) => {
             if (payload?.new && typeof payload.new.is_open === 'boolean') {
               setIsStoreOpen(payload.new.is_open);
@@ -193,7 +190,10 @@ export default function StorefrontView() {
         .subscribe();
     }
 
-    // Local tab-to-tab sync via BroadcastChannel
+    // 3. Gentle fallback (Check once every 60 seconds just in case WebSocket drops)
+    const fallbackInterval = setInterval(fetchStatus, 60000);
+
+    // Tab-to-tab sync via BroadcastChannel (zero DB calls)
     let bc = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
@@ -210,10 +210,10 @@ export default function StorefrontView() {
     }
 
     return () => {
-      clearInterval(interval);
       if (client && subscription) {
         client.removeChannel(subscription);
       }
+      clearInterval(fallbackInterval);
       if (bc) {
         bc.close();
       }
