@@ -242,16 +242,27 @@ export async function updateStoreSettings(isOpen) {
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('store_settings')
-        .upsert({ id: 1, is_open: nextOpen, updated_at: new Date().toISOString() })
-        .select()
-        .single();
+        .update({ is_open: nextOpen, updated_at: new Date().toISOString() })
+        .eq('id', 1)
+        .select();
 
-      if (!error && data) {
-        return { id: 1, is_open: Boolean(data.is_open) };
+      if (!error && (!data || data.length === 0)) {
+        const upsertRes = await supabase
+          .from('store_settings')
+          .upsert([{ id: 1, is_open: nextOpen, updated_at: new Date().toISOString() }])
+          .select();
+        data = upsertRes.data;
+        error = upsertRes.error;
       }
-      console.error('[updateStoreSettings] Supabase update store_settings error:', error?.message);
+
+      if (!error && data && data.length > 0) {
+        return { id: 1, is_open: Boolean(data[0].is_open) };
+      }
+      if (error) {
+        console.error('[updateStoreSettings] Supabase update store_settings error:', error?.message);
+      }
     } catch (err) {
       console.error('[updateStoreSettings] Supabase update store_settings exception:', err);
     }

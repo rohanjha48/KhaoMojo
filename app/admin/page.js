@@ -117,19 +117,70 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Handle Admin Store Open/Close Toggle
-  const handleToggleStore = async () => {
+  // Fix Admin Store Open/Close Toggle Function
+  const toggleStoreStatus = async (newStatus) => {
     try {
       setIsTogglingStore(true);
-      const nextStatus = !storeIsOpen;
-      setStoreIsOpen(nextStatus); // Optimistic UI update
-      await updateStoreSettings(nextStatus);
+      const supabase = getSupabase();
+
+      if (!supabase) {
+        console.error("Failed to update store status in Supabase: client not available");
+        alert("Database Error: Supabase client is not available.");
+        return;
+      }
+
+      // Strictly target id: 1
+      let { data, error } = await supabase
+        .from('store_settings')
+        .update({ is_open: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', 1)
+        .select();
+
+      // If update returned 0 rows, row 1 does not exist yet; attempt upsert
+      if (!error && (!data || data.length === 0)) {
+        console.warn("Row id: 1 not found in store_settings. Attempting upsert...");
+        const upsertRes = await supabase
+          .from('store_settings')
+          .upsert([{ id: 1, is_open: newStatus, updated_at: new Date().toISOString() }])
+          .select();
+        data = upsertRes.data;
+        error = upsertRes.error;
+      }
+
+      if (error) {
+        console.error("Failed to update store status in Supabase:", error);
+        alert(`Database Error: Could not change store status. ${error.message || ''}`);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.error("Failed to update store status: Row id: 1 not found in store_settings table.");
+        alert("Database Error: Row 1 does not exist in 'store_settings' table in Supabase. Please run the SQL migration.");
+        return;
+      }
+
+      console.log("Store status updated successfully:", data);
+      setStoreIsOpen(newStatus);
+
+      // Local tab-to-tab sync via BroadcastChannel
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('khaomojo_events');
+          bc.postMessage({ type: 'STORE_SETTINGS_CHANGED', payload: { id: 1, is_open: newStatus } });
+          bc.close();
+        } catch {}
+      }
     } catch (err) {
-      console.error('Failed to toggle store status in admin:', err);
-      loadStoreStatus();
+      console.error("Unexpected error updating store status:", err);
+      alert("Database Error: Could not change store status.");
     } finally {
       setIsTogglingStore(false);
     }
+  };
+
+  const handleToggleStore = () => {
+    const nextStatus = !storeIsOpen;
+    toggleStoreStatus(nextStatus);
   };
 
   // Fetch orders with Relational Join (orders with order_items and products)
