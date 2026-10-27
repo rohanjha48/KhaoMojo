@@ -130,30 +130,29 @@ export default function StorefrontView() {
   const [lastPlacedOrder, setLastPlacedOrder] = useState(null);
 
   // Store open status strictly managed via React useState
-  const [isOpen, setIsOpen] = useState(false);
+  const [isStoreOpen, setIsStoreOpen] = useState(true); // Default to true temporarily so it doesn't flash closed on load
   const [isChecking, setIsChecking] = useState(true);
 
-  // Client-Side Polling & Realtime Subscription for Store Status
   useEffect(() => {
     const client = supabase || getSupabase();
 
-    const fetchStoreStatus = async () => {
-      try {
-        if (!client) {
-          setIsChecking(false);
-          return;
-        }
+    const checkStoreStatus = async () => {
+      if (!client) {
+        setIsChecking(false);
+        return;
+      }
 
+      try {
         const { data, error } = await client
           .from('store_settings')
           .select('is_open')
           .eq('id', 1)
           .single();
-          
+        
         if (data && typeof data.is_open === 'boolean') {
-          setIsOpen(data.is_open);
+          setIsStoreOpen(data.is_open);
         } else if (error) {
-          // If query with id=1 failed, fallback to first row in table
+          // Fallback if table row isn't explicitly id: 1
           const { data: fallbackData } = await client
             .from('store_settings')
             .select('is_open')
@@ -161,23 +160,23 @@ export default function StorefrontView() {
             .maybeSingle();
 
           if (fallbackData && typeof fallbackData.is_open === 'boolean') {
-            setIsOpen(fallbackData.is_open);
+            setIsStoreOpen(fallbackData.is_open);
           }
         }
       } catch (err) {
-        console.error('Failed to fetch store status:', err);
+        console.error('Error checking store status:', err);
       } finally {
         setIsChecking(false);
       }
     };
 
-    // Fetch immediately on mount
-    fetchStoreStatus();
+    // Check immediately
+    checkStoreStatus();
+    
+    // Poll every 3 seconds to bypass all Next.js caches
+    const interval = setInterval(checkStoreStatus, 3000);
 
-    // Bulletproof fallback: Poll every 5 seconds
-    const intervalId = setInterval(fetchStoreStatus, 5000);
-
-    // Fast-path Supabase Realtime subscription
+    // Supabase Realtime subscription for instant updates
     let subscription = null;
     if (client) {
       subscription = client
@@ -186,9 +185,8 @@ export default function StorefrontView() {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'store_settings' },
           (payload) => {
-            console.log('[Realtime store_settings update]:', payload);
             if (payload?.new && typeof payload.new.is_open === 'boolean') {
-              setIsOpen(payload.new.is_open);
+              setIsStoreOpen(payload.new.is_open);
             }
           }
         )
@@ -205,14 +203,14 @@ export default function StorefrontView() {
             event.data?.type === 'STORE_SETTINGS_CHANGED' &&
             typeof event.data.payload?.is_open === 'boolean'
           ) {
-            setIsOpen(event.data.payload.is_open);
+            setIsStoreOpen(event.data.payload.is_open);
           }
         };
       } catch {}
     }
 
     return () => {
-      clearInterval(intervalId);
+      clearInterval(interval);
       if (client && subscription) {
         client.removeChannel(subscription);
       }
@@ -313,12 +311,12 @@ export default function StorefrontView() {
   return (
     <div className="min-h-screen bg-[#141210] text-[#F5F2EB] flex flex-col font-sans selection:bg-[#FF5500] selection:text-white">
       {/* 1. Compact Top Bar */}
-      <Navbar storeIsOpen={isOpen} isStoreLoading={isChecking} />
+      <Navbar storeIsOpen={isStoreOpen} isStoreLoading={isChecking} />
 
       {/* 2. Main Container: max-w-5xl mx-auto px-3 sm:px-6 pb-28 pt-3 */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 pb-28 pt-3 space-y-3">
         {/* If Store is Closed, render compact live Closed Notice */}
-        {!isOpen && <ClosedNotice />}
+        {!isStoreOpen && <ClosedNotice />}
 
         {/* Compact Utility Strip: Pickup Info + Instant Search */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
@@ -469,7 +467,7 @@ export default function StorefrontView() {
                     <ProductCard
                       key={product.id}
                       product={product}
-                      isClosed={!isOpen}
+                      isClosed={!isStoreOpen}
                       onOpenPrintModal={(prod) => setActivePrintProduct(prod)}
                     />
                   ))}
@@ -485,7 +483,7 @@ export default function StorefrontView() {
 
       {/* Slide-out Cart Sidebar */}
       <CartDrawer
-        storeIsOpen={isOpen}
+        storeIsOpen={isStoreOpen}
         onOrderSuccess={(order) => {
           setLastPlacedOrder(order);
         }}

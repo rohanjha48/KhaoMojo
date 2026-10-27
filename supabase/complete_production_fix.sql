@@ -37,6 +37,7 @@ ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 -- 5. Drop any conflicting or restrictive policies
 DROP POLICY IF EXISTS "Allow anon and authenticated select store_settings" ON public.store_settings;
 DROP POLICY IF EXISTS "Allow anon and authenticated update store_settings" ON public.store_settings;
+DROP POLICY IF EXISTS "Allow anon and authenticated manage store_settings" ON public.store_settings;
 DROP POLICY IF EXISTS "Allow public read access to orders" ON public.orders;
 DROP POLICY IF EXISTS "Allow public insert to orders" ON public.orders;
 DROP POLICY IF EXISTS "Allow public update to orders" ON public.orders;
@@ -58,14 +59,8 @@ DROP POLICY IF EXISTS "Allow anon and authenticated select products" ON public.p
 DROP POLICY IF EXISTS "Allow anon and authenticated manage products" ON public.products;
 
 -- 6. Create clean, permissive RLS policies
--- Store Settings: Public can read, authenticated & admin can update
-CREATE POLICY "Allow anon and authenticated select store_settings"
-    ON public.store_settings FOR SELECT
-    TO anon, authenticated
-    USING (true);
-
-CREATE POLICY "Allow anon and authenticated update store_settings"
-    ON public.store_settings FOR UPDATE
+CREATE POLICY "Allow anon and authenticated manage store_settings"
+    ON public.store_settings FOR ALL
     TO anon, authenticated
     USING (true)
     WITH CHECK (true);
