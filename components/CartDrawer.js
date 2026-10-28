@@ -11,6 +11,10 @@ import { useCart } from './CartContext';
 import { getSupabase } from '../utils/supabase/client';
 import { playChime } from '../utils/audio';
 
+const NAME_REGEX = /^[A-Za-z\s]{2,40}$/;
+const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
+const ROOM_REGEX = /^[A-Za-z0-9\s\-]{2,20}$/;
+
 export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
   const { 
     items, 
@@ -28,12 +32,14 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   if (!isCartOpen) return null;
 
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setFormError('');
+    setFieldErrors({});
 
     if (!storeIsOpen) {
       setFormError('The store is currently closed. Orders cannot be placed at this time.');
@@ -45,18 +51,40 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
       return;
     }
 
-    if (!customerName.trim()) {
-      setFormError('Please enter your name.');
-      return;
+    const form = e.currentTarget || document.getElementById('checkout-form');
+    if (form && typeof form.checkValidity === 'function' && !form.checkValidity()) {
+      if (typeof form.reportValidity === 'function') {
+        form.reportValidity();
+      }
     }
 
-    if (!roomNumber.trim()) {
-      setFormError('Please enter your hostel block and room number.');
-      return;
+    const trimmedName = customerName.trim();
+    const trimmedRoom = roomNumber.trim();
+    const trimmedPhone = phoneNumber.trim();
+
+    const errors = {};
+
+    if (!trimmedName) {
+      errors.name = 'Please enter your name.';
+    } else if (!NAME_REGEX.test(trimmedName)) {
+      errors.name = 'Name must be 2-40 characters and contain only letters and spaces.';
     }
 
-    if (!phoneNumber.trim() || phoneNumber.trim().length < 8) {
-      setFormError('Please enter a valid phone number for contact.');
+    if (!trimmedRoom) {
+      errors.room = 'Please enter your hostel block and room number.';
+    } else if (!ROOM_REGEX.test(trimmedRoom)) {
+      errors.room = 'Hostel Block & Room must be 2-20 characters (letters, numbers, spaces, and hyphens only).';
+    }
+
+    if (!trimmedPhone) {
+      errors.phone = 'Please enter your phone number.';
+    } else if (!PHONE_REGEX.test(trimmedPhone)) {
+      errors.phone = 'Phone number must be 7-15 digits with no letters (optional leading +).';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setFormError(Object.values(errors)[0]);
       return;
     }
 
@@ -363,12 +391,25 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
                       <input
                         type="text"
                         required
+                        minLength={2}
+                        maxLength={40}
+                        pattern="^[A-Za-z\s]{2,40}$"
+                        title="Only letters and spaces allowed (2-40 characters). No numbers or special characters."
                         placeholder="e.g. Rohan Sharma"
                         value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1F1C18] border border-[#2E2924] text-sm text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none focus:border-[#FF5500] transition-colors"
+                        onChange={(e) => {
+                          setCustomerName(e.target.value);
+                          if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
+                          if (formError) setFormError('');
+                        }}
+                        className={`w-full pl-9 pr-3 py-2 rounded-xl bg-[#1F1C18] border ${
+                          fieldErrors.name ? 'border-rose-500/70 focus:border-rose-500' : 'border-[#2E2924] focus:border-[#FF5500]'
+                        } text-sm text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none transition-colors`}
                       />
                     </div>
+                    {fieldErrors.name && (
+                      <p className="text-[11px] text-rose-400 mt-1 font-medium">{fieldErrors.name}</p>
+                    )}
                   </div>
 
                   {/* Room Number */}
@@ -381,12 +422,25 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
                       <input
                         type="text"
                         required
+                        minLength={2}
+                        maxLength={20}
+                        pattern="^[A-Za-z0-9\s\-]{2,20}$"
+                        title="Only letters, numbers, spaces, and hyphens allowed (2-20 characters)."
                         placeholder="e.g. Block B - Room 304"
                         value={roomNumber}
-                        onChange={(e) => setRoomNumber(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1F1C18] border border-[#2E2924] text-sm text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none focus:border-[#FF5500] transition-colors"
+                        onChange={(e) => {
+                          setRoomNumber(e.target.value);
+                          if (fieldErrors.room) setFieldErrors(prev => ({ ...prev, room: '' }));
+                          if (formError) setFormError('');
+                        }}
+                        className={`w-full pl-9 pr-3 py-2 rounded-xl bg-[#1F1C18] border ${
+                          fieldErrors.room ? 'border-rose-500/70 focus:border-rose-500' : 'border-[#2E2924] focus:border-[#FF5500]'
+                        } text-sm text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none transition-colors`}
                       />
                     </div>
+                    {fieldErrors.room && (
+                      <p className="text-[11px] text-rose-400 mt-1 font-medium">{fieldErrors.room}</p>
+                    )}
                   </div>
 
                   {/* Phone Number */}
@@ -399,12 +453,25 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
                       <input
                         type="tel"
                         required
+                        minLength={7}
+                        maxLength={16}
+                        pattern="^\+?[0-9]{7,15}$"
+                        title="Must only contain numbers (7-15 digits), optionally starting with '+'. No letters allowed."
                         placeholder="e.g. 9876543210"
                         value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1F1C18] border border-[#2E2924] text-sm text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none focus:border-[#FF5500] transition-colors"
+                        onChange={(e) => {
+                          setPhoneNumber(e.target.value);
+                          if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: '' }));
+                          if (formError) setFormError('');
+                        }}
+                        className={`w-full pl-9 pr-3 py-2 rounded-xl bg-[#1F1C18] border ${
+                          fieldErrors.phone ? 'border-rose-500/70 focus:border-rose-500' : 'border-[#2E2924] focus:border-[#FF5500]'
+                        } text-sm text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none transition-colors`}
                       />
                     </div>
+                    {fieldErrors.phone && (
+                      <p className="text-[11px] text-rose-400 mt-1 font-medium">{fieldErrors.phone}</p>
+                    )}
                   </div>
 
                   {/* Prepaid UPI Payment Section */}
