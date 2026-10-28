@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Shield, ShoppingBag } from 'lucide-react';
+import { Shield, ShoppingBag, User } from 'lucide-react';
 import { useCart } from './CartContext';
+import { useAuth } from './AuthContext';
 
 export default function Navbar({ storeIsOpen = false, isStoreLoading = false }) {
   const { totalItems, totalAmount, setIsCartOpen } = useCart();
+  const { user, openAuthModal } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -67,6 +69,34 @@ export default function Navbar({ storeIsOpen = false, isStoreLoading = false }) 
               <ShoppingBag className="w-3.5 h-3.5" />
               <span className="tabular-nums">{totalItems} • ₹{totalAmount.toFixed(0)}</span>
             </button>
+          )}
+
+          {/* User Profile / Auth Button */}
+          {isMounted && (
+            user ? (
+              <Link
+                href="/profile"
+                className="relative p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-[#1F1C18] hover:bg-[#292520] border border-[#2E2924] text-[#F5F2EB] text-xs font-semibold flex items-center gap-1.5 transition-colors group"
+                title="My Orders & Profile"
+              >
+                <div className="relative">
+                  <div className="w-4 h-4 rounded-full bg-[#FF5500]/20 border border-[#FF5500]/50 text-[#FF5500] flex items-center justify-center text-[9px] font-bold">
+                    {user.email ? user.email[0].toUpperCase() : 'U'}
+                  </div>
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-1 ring-[#141210]" />
+                </div>
+                <span className="hidden sm:inline font-medium">My Orders</span>
+              </Link>
+            ) : (
+              <button
+                onClick={openAuthModal}
+                className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-[#1F1C18] hover:bg-[#292520] border border-[#2E2924] text-[#A8A29E] hover:text-[#F5F2EB] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Sign In / Register"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sign In</span>
+              </button>
+            )
           )}
 
           {/* Admin Link */}

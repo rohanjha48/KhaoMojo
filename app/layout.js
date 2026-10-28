@@ -1,6 +1,7 @@
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "../components/CartContext";
+import { AuthProvider } from "../components/AuthContext";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -34,9 +35,11 @@ export default function RootLayout({ children }) {
       className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col bg-[#141210] text-[#F5F2EB] font-sans selection:bg-[#FF5500] selection:text-white">
-        <CartProvider>
-          {children}
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            {children}
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

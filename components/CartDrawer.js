@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, 
   MapPin, Phone, User, CheckCircle2, Loader2, Sparkles, 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCart } from './CartContext';
+import { useAuth } from './AuthContext';
 import { getSupabase } from '../utils/supabase/client';
 import { playChime } from '../utils/audio';
 
@@ -27,6 +28,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
     totalItems, 
     totalAmount 
   } = useCart();
+  const { user, openAuthModal } = useAuth();
 
   const [customerName, setCustomerName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
@@ -35,6 +37,34 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+
+  // Auto-fill customer details for returning users or signed-in users
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedName = localStorage.getItem('khaomojo_customer_name');
+      const savedPhone = localStorage.getItem('khaomojo_phone_number');
+      const savedRoom = localStorage.getItem('khaomojo_room_number');
+
+      if (!customerName) {
+        if (savedName) {
+          setCustomerName(savedName);
+        } else if (user?.user_metadata?.full_name) {
+          setCustomerName(user.user_metadata.full_name);
+        }
+      }
+
+      if (!phoneNumber && savedPhone) {
+        setPhoneNumber(savedPhone);
+      }
+
+      if (!roomNumber && savedRoom) {
+        setRoomNumber(savedRoom);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [user, isCartOpen]);
 
   if (!isCartOpen) return null;
 
@@ -118,6 +148,22 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         print_file_url: item.printFileUrl || null,
       }));
 
+      // Save details for seamless future checkouts
+      try {
+        localStorage.setItem('khaomojo_customer_name', trimmedName);
+        localStorage.setItem('khaomojo_room_number', trimmedRoom);
+        localStorage.setItem('khaomojo_phone_number', trimmedPhone);
+      } catch {
+        // ignore localStorage errors
+      }
+
+      // Check for authenticated user ID
+      let currentUserId = user?.id || null;
+      if (!currentUserId) {
+        const { data: authData } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+        currentUserId = authData?.user?.id || null;
+      }
+
       // Single atomic RPC transaction (permanently prevents blank/orphan orders)
       const { data: orderData, error: orderError } = await supabase.rpc('place_order', {
         p_customer_name: trimmedName,
@@ -126,6 +172,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         p_utr_number: trimmedUtr,
         p_total_amount: Number(totalAmount.toFixed(2)),
         p_cart_items: itemsToInsert,
+        p_user_id: currentUserId,
       });
 
       if (orderError || !orderData) {
@@ -362,6 +409,30 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
                       Hostel Pickup
                     </span>
                   </div>
+
+                  {/* Auth / Account Linking Status */}
+                  {user ? (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between text-xs text-emerald-400">
+                      <div className="flex items-center gap-2 truncate">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Linking order to <strong className="text-[#F5F2EB] font-mono">{user.email}</strong></span>
+                      </div>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0">
+                        Logged In
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-[#1F1C18] border border-[#2E2924] flex items-center justify-between text-xs text-[#A8A29E]">
+                      <span>Want live tracking in My Orders?</span>
+                      <button
+                        type="button"
+                        onClick={openAuthModal}
+                        className="text-[#FF5500] font-bold hover:underline cursor-pointer text-xs"
+                      >
+                        Sign In
+                      </button>
+                    </div>
+                  )}
 
                   <div className="p-2.5 rounded-xl bg-[#1F1C18] border border-[#2E2924] text-xs text-[#A8A29E]">
                     <strong className="text-[#F5F2EB]">Pickup details:</strong> B block 8th floor and C block 4th floor.

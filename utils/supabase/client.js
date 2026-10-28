@@ -28,7 +28,9 @@ export function getSupabase() {
   if (isSupabaseConfigured()) {
     clientInstance = createSupabaseClient(url, key, {
       auth: {
-        persistSession: false,
+        persistSession: typeof window !== 'undefined',
+        autoRefreshToken: typeof window !== 'undefined',
+        detectSessionInUrl: true,
       },
       realtime: {
         params: {
@@ -50,14 +52,15 @@ export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey;
   if (!isSupabaseConfigured()) return null;
-  return createSupabaseClient(url, key);
+  return createSupabaseClient(url, key, {
+    auth: {
+      persistSession: typeof window !== 'undefined',
+      autoRefreshToken: typeof window !== 'undefined',
+      detectSessionInUrl: true,
+    },
+  });
 }
 
-export const supabase = isSupabaseConfigured()
-  ? createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey
-    )
-  : null;
+export const supabase = isSupabaseConfigured() ? getSupabase() : null;
 
 export default getSupabase;
