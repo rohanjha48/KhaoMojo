@@ -47,6 +47,20 @@ export async function updateProductDetails(productId, updates) {
 
   if (isSupabaseConfigured() && supabase) {
     try {
+      if (updates.price !== undefined || updates.stock_count !== undefined) {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_product', {
+          p_product_id: productId,
+          p_price: updates.price !== undefined ? Number(updates.price) : null,
+          p_stock_count: updates.stock_count !== undefined ? Number(updates.stock_count) : null,
+        });
+        if (!rpcError && rpcData) {
+          if (broadcastChannel) {
+            broadcastChannel.postMessage({ type: 'PRODUCT_UPDATED', payload: rpcData });
+          }
+          return rpcData;
+        }
+      }
+
       const { data, error } = await supabase
         .from('products')
         .update(updates)
@@ -120,7 +134,7 @@ export async function uploadPrintDocument(file) {
 /**
  * Submit a customer order with items strictly inserting into Supabase
  */
-export async function createOrder({ customerName, roomNumber, phoneNumber, items, totalAmount }) {
+export async function createOrder({ customerName, roomNumber, phoneNumber, utrNumber, items, totalAmount }) {
   const supabase = getSupabase();
 
   if (!isSupabaseConfigured() || !supabase) {
@@ -128,55 +142,29 @@ export async function createOrder({ customerName, roomNumber, phoneNumber, items
     throw new Error('Supabase client is not configured.');
   }
 
-  // Step 1: Insert Order and GET the returned ID
-  const { data: orderData, error: orderError } = await supabase
-    .from('orders')
-    .insert([{
-      customer_name: customerName,
-      room_number: roomNumber,
-      phone_number: phoneNumber,
-      total_amount: totalAmount,
-      status: 'pending',
-    }])
-    .select()
-    .single();
-
-  if (orderError || !orderData) {
-    console.error("Failed to insert order:", orderError);
-    throw orderError || new Error("Failed to insert order");
-  }
-
-  // Step 2: Map cart items using the NEW orderData.id
   const cart = items || [];
   const itemsToInsert = cart.map(item => ({
-    order_id: orderData.id,
     product_id: item.id,
     product_name: item.name || item.title,
     quantity: item.quantity,
-    price_at_time: item.price
+    price_at_time: item.price,
+    unit_price: item.price,
+    print_file_url: item.printFileUrl || null,
   }));
 
-  // Step 3: Insert into order_items
-  let { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+  // Atomic transactional order creation
+  const { data: orderData, error: orderError } = await supabase.rpc('place_order', {
+    p_customer_name: (customerName || '').trim(),
+    p_room_number: (roomNumber || '').trim(),
+    p_phone_number: (phoneNumber || '').trim(),
+    p_utr_number: (utrNumber || '').trim(),
+    p_total_amount: Number(totalAmount.toFixed(2)),
+    p_cart_items: itemsToInsert,
+  });
 
-  if (itemsError) {
-    console.error("Failed to insert items:", itemsError);
-    // Schema fallback: if Postgres schema requires unit_price or does not yet have product_name/price_at_time
-    if (itemsError.code === 'PGRST204' || itemsError.code === '23502' || itemsError.message?.includes('column')) {
-      const fallbackItems = cart.map(item => ({
-        order_id: orderData.id,
-        product_id: item.id,
-        quantity: item.quantity,
-        unit_price: item.price,
-        ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
-      }));
-      const retryRes = await supabase.from('order_items').insert(fallbackItems);
-      if (retryRes.error) {
-        console.error("Fallback items insert failed:", retryRes.error);
-      } else {
-        itemsError = null;
-      }
-    }
+  if (orderError || !orderData) {
+    console.error("Failed to place order via RPC:", orderError);
+    throw orderError || new Error("Failed to place order");
   }
 
   const completeOrder = {
@@ -242,6 +230,13 @@ export async function updateStoreSettings(isOpen) {
 
   if (isSupabaseConfigured() && supabase) {
     try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_store_status', {
+        p_is_open: nextOpen,
+      });
+      if (!rpcError && rpcData) {
+        return { id: 1, is_open: Boolean(rpcData.is_open) };
+      }
+
       let { data, error } = await supabase
         .from('store_settings')
         .update({ is_open: nextOpen, updated_at: new Date().toISOString() })
@@ -279,6 +274,28 @@ export async function fetchOrders() {
 
   if (isSupabaseConfigured() && supabase) {
     try {
+      // 1. Try secure RPC get_admin_orders() first (works with RLS active)
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_orders');
+      if (!rpcError && Array.isArray(rpcData)) {
+        return rpcData.map((order) => {
+          const orderItems = order.order_items || [];
+          return {
+            ...order,
+            order_items: orderItems,
+            items: orderItems.map((item) => ({
+              id: item.id,
+              quantity: item.quantity,
+              unit_price: item.price_at_time ?? item.unit_price ?? item.price ?? 0,
+              price_at_time: item.price_at_time ?? item.unit_price ?? item.price ?? 0,
+              print_file_url: item.print_file_url,
+              product_name: item.product_name || item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || 'Item',
+              product_id: item.product_id,
+            })),
+          };
+        });
+      }
+
+      // 2. Fallback to direct table query
       const { data, error } = await supabase
         .from('orders')
         .select('*, order_items(*, products(*))')
@@ -319,6 +336,19 @@ export async function updateOrderStatus(orderId, newStatus) {
 
   if (isSupabaseConfigured() && supabase) {
     try {
+      // 1. Try secure RPC first
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_order_status', {
+        p_order_id: orderId,
+        p_status: newStatus,
+      });
+      if (!rpcError && rpcData) {
+        if (broadcastChannel && typeof window !== 'undefined') {
+          broadcastChannel.postMessage({ type: 'ORDER_STATUS_CHANGED', payload: rpcData });
+        }
+        return rpcData;
+      }
+
+      // 2. Fallback to direct update
       const { data, error } = await supabase
         .from('orders')
         .update({ status: newStatus })

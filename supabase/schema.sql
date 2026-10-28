@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS orders (
     customer_name TEXT NOT NULL,
     room_number TEXT NOT NULL,
     phone_number TEXT NOT NULL,
+    utr_number TEXT,
     total_amount NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0),
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'delivered', 'cancelled')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()

@@ -7,7 +7,7 @@ import {
   User, CheckCircle2, AlertCircle, RefreshCw, Download, 
   ExternalLink, FileText, ShoppingBag, Banknote, Edit3, 
   Save, Plus, Flame, Check, X, Bell, Volume2, Sparkles, Database,
-  History, Calendar, Search
+  History, Calendar, Search, Loader2
 } from 'lucide-react';
 import { 
   fetchOrders, 
@@ -21,17 +21,38 @@ import {
 import { isSupabaseConfigured, getSupabase } from '../../utils/supabase/client';
 import { playChime } from '../../utils/audio';
 
-const DEFAULT_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || 'khaopiyoashkaro';
-
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('khaomojo_admin_auth') === 'true';
-    }
-    return false;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+
+  // Verify secure server cookie session on mount
+  useEffect(() => {
+    let mounted = true;
+    async function checkAdminAuth() {
+      try {
+        const res = await fetch('/api/admin/auth', { method: 'GET' });
+        const data = await res.json().catch(() => ({}));
+        if (mounted) {
+          setIsAuthenticated(Boolean(data?.authenticated));
+        }
+      } catch {
+        if (mounted) {
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (mounted) {
+          setIsCheckingAuth(false);
+        }
+      }
+    }
+    checkAdminAuth();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Active Tab: 'orders', 'history', or 'inventory'
   const [activeTab, setActiveTab] = useState('orders');
@@ -391,27 +412,46 @@ export default function AdminPage() {
     };
   }, [isAuthenticated, handleIncomingOrder, loadOrders, loadProducts, loadStoreStatus]);
 
-  // Handle PIN Login (strictly requires khaopiyoashkaro or NEXT_PUBLIC_ADMIN_PIN)
-  const handleLogin = (e) => {
+  // Handle secure PIN Login via server API route
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (pinInput === DEFAULT_PIN || pinInput === 'khaopiyoashkaro') {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('khaomojo_admin_auth', 'true');
-      setPinError('');
-      // Prime audio permissions on user click
-      try {
-        const audio = new Audio('/sounds/notification.mp3');
-        audio.volume = 0.01;
-        audio.play().then(() => audio.pause()).catch(() => {});
-      } catch {}
-    } else {
-      setPinError('Incorrect admin password. Please try again.');
+    if (!pinInput.trim()) return;
+
+    setPinError('');
+    setIsLoggingIn(true);
+
+    try {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinInput }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data?.success) {
+        setIsAuthenticated(true);
+        setPinInput('');
+        // Prime audio permissions on user click
+        try {
+          const audio = new Audio('/sounds/notification.mp3');
+          audio.volume = 0.01;
+          audio.play().then(() => audio.pause()).catch(() => {});
+        } catch {}
+      } else {
+        setPinError(data?.error || 'Incorrect admin password. Please try again.');
+      }
+    } catch {
+      setPinError('Failed to verify admin password. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/auth', { method: 'DELETE' });
+    } catch {}
     setIsAuthenticated(false);
-    sessionStorage.removeItem('khaomojo_admin_auth');
     setPinInput('');
   };
 
@@ -504,6 +544,20 @@ export default function AdminPage() {
     });
   }, [historyOrders, historyStatusFilter, historySearchQuery]);
 
+  // Initial loading state while verifying secure cookie
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 font-sans text-zinc-100">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-14 w-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 animate-pulse shadow-xl">
+            <Shield className="w-7 h-7" />
+          </div>
+          <p className="text-xs text-zinc-400 font-medium">Verifying admin session...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Login Screen
   if (!isAuthenticated) {
     return (
@@ -549,9 +603,17 @@ export default function AdminPage() {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20"
+              disabled={isLoggingIn}
+              className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-zinc-950 font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
             >
-              Unlock Dashboard
+              {isLoggingIn ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                <span>Unlock Dashboard</span>
+              )}
             </button>
           </form>
 

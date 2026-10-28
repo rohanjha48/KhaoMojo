@@ -14,6 +14,7 @@ import { playChime } from '../utils/audio';
 const NAME_REGEX = /^[A-Za-z\s]{2,40}$/;
 const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
 const ROOM_REGEX = /^[A-Za-z0-9\s\-]{2,20}$/;
+const UTR_REGEX = /^[A-Za-z0-9]{12}$/;
 
 export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
   const { 
@@ -30,6 +31,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
   const [customerName, setCustomerName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [utrNumber, setUtrNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -61,6 +63,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
     const trimmedName = customerName.trim();
     const trimmedRoom = roomNumber.trim();
     const trimmedPhone = phoneNumber.trim();
+    const trimmedUtr = utrNumber.trim();
 
     const errors = {};
 
@@ -82,6 +85,12 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
       errors.phone = 'Phone number must be 7-15 digits with no letters (optional leading +).';
     }
 
+    if (!trimmedUtr) {
+      errors.utr = 'Please enter the 12-digit UTR / Reference number.';
+    } else if (!UTR_REGEX.test(trimmedUtr)) {
+      errors.utr = 'UTR must be strictly 12 alphanumeric characters.';
+    }
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       setFormError(Object.values(errors)[0]);
@@ -99,66 +108,42 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
 
       const cart = items;
 
-      // Step 1: Insert Order and GET the returned ID
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert([{
-          customer_name: customerName.trim(),
-          room_number: roomNumber.trim(),
-          phone_number: phoneNumber.trim(),
-          total_amount: Number(totalAmount.toFixed(2)),
-          status: 'pending',
-        }])
-        .select()
-        .single();
-
-      if (orderError || !orderData) {
-        console.error("Failed to insert order:", orderError);
-        setFormError(orderError?.message || "Failed to insert order");
-        return; 
-      }
-
-      // Step 2: Map cart items using the NEW orderData.id
+      // Prepare cart items for single atomic transactional RPC
       const itemsToInsert = cart.map(item => ({
-        order_id: orderData.id,
         product_id: item.id,
         product_name: item.name || item.title,
         quantity: item.quantity,
-        price_at_time: item.price
+        price_at_time: item.price,
+        unit_price: item.price,
+        print_file_url: item.printFileUrl || null,
       }));
 
-      // Step 3: Insert into order_items
-      let { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+      // Single atomic RPC transaction (permanently prevents blank/orphan orders)
+      const { data: orderData, error: orderError } = await supabase.rpc('place_order', {
+        p_customer_name: trimmedName,
+        p_room_number: trimmedRoom,
+        p_phone_number: trimmedPhone,
+        p_utr_number: trimmedUtr,
+        p_total_amount: Number(totalAmount.toFixed(2)),
+        p_cart_items: itemsToInsert,
+      });
 
-      if (itemsError) {
-        console.error("Failed to insert items:", itemsError);
-        // Schema fallback: if Postgres schema requires unit_price or does not yet have product_name/price_at_time
-        if (itemsError.code === 'PGRST204' || itemsError.code === '23502' || itemsError.message?.includes('column')) {
-          const fallbackItems = cart.map(item => ({
-            order_id: orderData.id,
-            product_id: item.id,
-            quantity: item.quantity,
-            unit_price: item.price,
-            ...(item.printFileUrl ? { print_file_url: item.printFileUrl } : {}),
-          }));
-          const retryRes = await supabase.from('order_items').insert(fallbackItems);
-          if (retryRes.error) {
-            console.error("Fallback items insert failed:", retryRes.error);
-          } else {
-            itemsError = null;
-          }
-        }
+      if (orderError || !orderData) {
+        console.error("Failed to place order via RPC:", orderError);
+        setFormError(orderError?.message || "Failed to place order");
+        return; 
       }
 
-      // 3. Trigger Telegram Notification
+      // Step 2: Trigger Telegram Notification
       try {
         const notifyRes = await fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            roomNumber: roomNumber.trim(),
-            customerName: customerName.trim(),
-            phoneNumber: phoneNumber.trim(),
+            roomNumber: trimmedRoom,
+            customerName: trimmedName,
+            phoneNumber: trimmedPhone,
+            utrNumber: trimmedUtr,
             items: cart.map(it => ({
               id: it.id,
               name: it.name || it.title,
@@ -179,7 +164,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         console.error('[CartDrawer] Failed to dispatch Telegram notification:', notifyErr);
       }
 
-      // 4. Play success chime & celebratory confetti
+      // Step 3: Play success chime & celebratory confetti
       playChime('success');
       try {
         confetti({
@@ -192,7 +177,8 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         // ignore confetti errors
       }
 
-      // 5. Clear cart and close drawer
+      // Step 4: Clear cart, reset UTR and close drawer
+      setUtrNumber('');
       clearCart();
       setIsCartOpen(false);
 
@@ -507,6 +493,45 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
                     <p className="text-center text-xs font-medium text-[#F5F2EB]/90 bg-[#292520] p-2 rounded-xl border border-[#2E2924]">
                       Scan to pay. All orders are strictly prepaid via UPI.
                     </p>
+
+                    {/* Mandatory 12-digit UTR / Reference No Input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-semibold text-[#A8A29E]">
+                          Enter 12-digit UTR / Reference No *
+                        </label>
+                        <span className="text-[10px] text-[#FF5500] font-mono">12 alphanumeric</span>
+                      </div>
+                      <div className="relative">
+                        <FileText className="absolute left-3 top-2.5 w-4 h-4 text-[#A8A29E]" />
+                        <input
+                          type="text"
+                          required
+                          minLength={12}
+                          maxLength={12}
+                          pattern="^[A-Za-z0-9]{12}$"
+                          title="Must be strictly 12 alphanumeric characters (letters and numbers only)."
+                          placeholder="e.g. 429812345678"
+                          value={utrNumber}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
+                            setUtrNumber(val);
+                            if (fieldErrors.utr) setFieldErrors((prev) => ({ ...prev, utr: '' }));
+                            if (formError) setFormError('');
+                          }}
+                          className={`w-full pl-9 pr-3 py-2 rounded-xl bg-[#141210] border ${
+                            fieldErrors.utr ? 'border-rose-500/70 focus:border-rose-500' : 'border-[#2E2924] focus:border-[#FF5500]'
+                          } text-sm font-mono tracking-wider text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none transition-colors uppercase`}
+                        />
+                      </div>
+                      {fieldErrors.utr ? (
+                        <p className="text-[11px] text-rose-400 mt-1 font-medium">{fieldErrors.utr}</p>
+                      ) : (
+                        <p className="text-[10px] text-[#A8A29E] mt-1">
+                          After scanning, copy the 12-digit UPI Ref / UTR number from your payment receipt.
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {formError && (
