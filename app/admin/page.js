@@ -129,6 +129,16 @@ export default function AdminPage() {
   // Load store open/close setting
   const loadStoreStatus = useCallback(async () => {
     try {
+      // 1. Try server admin API
+      const res = await fetch('/api/admin/store');
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (typeof data.is_open === 'boolean') {
+          setStoreIsOpen(data.is_open);
+          return;
+        }
+      }
+      // 2. Fallback to fetchStoreSettings
       const settings = await fetchStoreSettings();
       if (settings && typeof settings.is_open === 'boolean') {
         setStoreIsOpen(settings.is_open);
@@ -138,58 +148,41 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Fix Admin Store Open/Close Toggle Function
+  // Admin Store Open/Close Toggle Function
   const toggleStoreStatus = async (newStatus) => {
     try {
       setIsTogglingStore(true);
-      const supabase = getSupabase();
 
-      if (!supabase) {
-        console.error("Failed to update store status in Supabase: client not available");
-        alert("Database Error: Supabase client is not available.");
+      // 1. Try server-side admin API route first (uses Service Role, completely bypasses RLS)
+      try {
+        const res = await fetch('/api/admin/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_open: newStatus }),
+        });
+        if (res.ok) {
+          const resData = await res.json().catch(() => ({}));
+          if (resData.success) {
+            setStoreIsOpen(newStatus);
+            if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+              try {
+                const bc = new BroadcastChannel('khaomojo_events');
+                bc.postMessage({ type: 'STORE_SETTINGS_CHANGED', payload: { id: 1, is_open: newStatus } });
+                bc.close();
+              } catch {}
+            }
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Admin store API route error, trying dataService:', apiErr);
+      }
+
+      // 2. Fallback to dataService (RPC / Supabase client)
+      const res = await updateStoreSettings(newStatus);
+      if (res && typeof res.is_open === 'boolean') {
+        setStoreIsOpen(res.is_open);
         return;
-      }
-
-      // Strictly target id: 1
-      let { data, error } = await supabase
-        .from('store_settings')
-        .update({ is_open: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', 1)
-        .select();
-
-      // If update returned 0 rows, row 1 does not exist yet; attempt upsert
-      if (!error && (!data || data.length === 0)) {
-        console.warn("Row id: 1 not found in store_settings. Attempting upsert...");
-        const upsertRes = await supabase
-          .from('store_settings')
-          .upsert([{ id: 1, is_open: newStatus, updated_at: new Date().toISOString() }])
-          .select();
-        data = upsertRes.data;
-        error = upsertRes.error;
-      }
-
-      if (error) {
-        console.error("Failed to update store status in Supabase:", error);
-        alert(`Database Error: Could not change store status. ${error.message || ''}`);
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        console.error("Failed to update store status: Row id: 1 not found in store_settings table.");
-        alert("Database Error: Row 1 does not exist in 'store_settings' table in Supabase. Please run the SQL migration.");
-        return;
-      }
-
-      console.log("Store status updated successfully:", data);
-      setStoreIsOpen(newStatus);
-
-      // Local tab-to-tab sync via BroadcastChannel
-      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        try {
-          const bc = new BroadcastChannel('khaomojo_events');
-          bc.postMessage({ type: 'STORE_SETTINGS_CHANGED', payload: { id: 1, is_open: newStatus } });
-          bc.close();
-        } catch {}
       }
     } catch (err) {
       console.error("Unexpected error updating store status:", err);
@@ -204,49 +197,29 @@ export default function AdminPage() {
     toggleStoreStatus(nextStatus);
   };
 
-  // Fetch orders with Relational Join (orders with order_items and products)
+  // Fetch orders (Server API first, fallback to RPC & client)
   const loadOrders = useCallback(async (showSpinner = false) => {
     try {
       if (showSpinner) setOrdersLoading(true);
-      const supabase = getSupabase();
-      if (isSupabaseConfigured() && supabase) {
-        // Relational join: orders with order_items and products
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*, order_items(*, products(*))')
-          .order('created_at', { ascending: false });
 
-        if (!error && data) {
-          const hydratedData = data.map((order) => {
-            if ((!order.order_items || order.order_items.length === 0) && typeof window !== 'undefined') {
-              try {
-                const localRaw = localStorage.getItem('khaomojo_orders');
-                if (localRaw) {
-                  const localList = JSON.parse(localRaw);
-                  const found = localList.find((lo) => lo.id === order.id);
-                  if (found && (found.order_items?.length || found.items?.length)) {
-                    return {
-                      ...order,
-                      order_items: found.order_items || found.items,
-                      items: found.items || found.order_items,
-                    };
-                  }
-                }
-              } catch {}
-            }
-            return order;
-          });
-          setOrders(hydratedData);
-          hydratedData.forEach((o) => {
-            if (o?.id) seenOrderIds.current.add(o.id);
-          });
-          return;
+      // 1. Fetch via server-side admin orders API (bypasses RLS with Service Role & selects ALL orders)
+      try {
+        const res = await fetch('/api/admin/orders');
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (Array.isArray(data) && data.length > 0) {
+            setOrders(data);
+            data.forEach((o) => {
+              if (o?.id) seenOrderIds.current.add(o.id);
+            });
+            return;
+          }
         }
-        if (error) {
-          console.warn('Supabase fetch orders with relational join error, trying dataService:', error.message);
-        }
+      } catch (apiErr) {
+        console.warn('Admin orders API route error, trying dataService:', apiErr);
       }
 
+      // 2. Fallback to dataService (RPC get_admin_orders and table query)
       const data = await fetchOrders();
       setOrders(data);
       if (Array.isArray(data)) {

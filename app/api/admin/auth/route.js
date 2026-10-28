@@ -1,45 +1,12 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-
-const SESSION_COOKIE = 'khaomojo_admin_session';
-const MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
-
-function getSecret() {
-  return (
-    process.env.ADMIN_PIN ||
-    process.env.NEXT_PUBLIC_ADMIN_PIN ||
-    'khaopiyoashkaro'
-  ).trim();
-}
-
-function signTimestamp(timestamp, secret) {
-  return crypto.createHmac('sha256', secret).update(String(timestamp)).digest('hex');
-}
-
-function verifyToken(token, secret) {
-  if (!token || typeof token !== 'string') return false;
-  const parts = token.split(':');
-  if (parts.length !== 2) return false;
-  const [timestampStr, signature] = parts;
-  const timestamp = Number(timestampStr);
-  if (!Number.isFinite(timestamp)) return false;
-
-  // Max age check
-  const now = Date.now();
-  if (now - timestamp > MAX_AGE_SECONDS * 1000 || timestamp > now + 60_000) {
-    return false;
-  }
-
-  const expectedSig = signTimestamp(timestamp, secret);
-  try {
-    const sigBuf = Buffer.from(signature, 'hex');
-    const expBuf = Buffer.from(expectedSig, 'hex');
-    if (sigBuf.length !== expBuf.length) return false;
-    return crypto.timingSafeEqual(sigBuf, expBuf);
-  } catch {
-    return false;
-  }
-}
+import { 
+  SESSION_COOKIE, 
+  MAX_AGE_SECONDS, 
+  getSecret, 
+  signTimestamp, 
+  verifyToken 
+} from '../../../../utils/adminAuth';
 
 export async function GET(request) {
   const cookie = request.cookies.get(SESSION_COOKIE)?.value;
@@ -59,7 +26,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'PIN is required' }, { status: 400 });
     }
 
-    // Timing-safe or direct comparison
     const enteredBuf = Buffer.from(enteredPin);
     const secretBuf = Buffer.from(secret);
     const matches =

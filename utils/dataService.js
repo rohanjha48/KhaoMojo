@@ -221,13 +221,33 @@ export async function fetchStoreSettings() {
  * Update store settings (id = 1) in Supabase and notify all clients
  */
 export async function updateStoreSettings(isOpen) {
-  const supabase = getSupabase();
   const nextOpen = Boolean(isOpen);
 
   if (typeof window !== 'undefined' && broadcastChannel) {
     broadcastChannel.postMessage({ type: 'STORE_SETTINGS_CHANGED', payload: { id: 1, is_open: nextOpen } });
   }
 
+  // 1. Try server-side admin API first (uses Service Role / server bypass)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/admin/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_open: nextOpen }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.success) {
+          return { id: 1, is_open: Boolean(data.is_open) };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[updateStoreSettings] API route error, falling back to Supabase client:', apiErr);
+    }
+  }
+
+  // 2. Fallback to direct client RPC / table update
+  const supabase = getSupabase();
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_store_status', {
@@ -270,13 +290,43 @@ export async function updateStoreSettings(isOpen) {
  * Fetch all orders strictly from Supabase (Admin function)
  */
 export async function fetchOrders() {
-  const supabase = getSupabase();
+  // 1. Try server-side admin API first (bypasses RLS with Service Role & selects ALL orders)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/admin/orders');
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (Array.isArray(data)) {
+          return data.map((order) => {
+            const orderItems = order.order_items || [];
+            return {
+              ...order,
+              order_items: orderItems,
+              items: orderItems.map((item) => ({
+                id: item.id,
+                quantity: item.quantity,
+                unit_price: item.price_at_time ?? item.unit_price ?? item.price ?? 0,
+                price_at_time: item.price_at_time ?? item.unit_price ?? item.price ?? 0,
+                print_file_url: item.print_file_url,
+                product_name: item.product_name || item.products?.name || (Array.isArray(item.products) ? item.products[0]?.name : null) || 'Item',
+                product_id: item.product_id,
+              })),
+            };
+          });
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[fetchOrders] Admin API route error, falling back to client Supabase:', apiErr);
+    }
+  }
 
+  // 2. Fallback to client Supabase (RPC get_admin_orders first, then table)
+  const supabase = getSupabase();
   if (isSupabaseConfigured() && supabase) {
     try {
-      // 1. Try secure RPC get_admin_orders() first (works with RLS active)
+      // 1. Try secure RPC get_admin_orders() first (SECURITY DEFINER works regardless of RLS)
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_orders');
-      if (!rpcError && Array.isArray(rpcData)) {
+      if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
         return rpcData.map((order) => {
           const orderItems = order.order_items || [];
           return {
@@ -332,11 +382,33 @@ export async function fetchOrders() {
  * Update order status in Supabase (Admin function)
  */
 export async function updateOrderStatus(orderId, newStatus) {
-  const supabase = getSupabase();
+  // 1. Try server-side admin API first (uses Service Role / server bypass)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, status: newStatus }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.success && data?.order) {
+          if (broadcastChannel && typeof window !== 'undefined') {
+            broadcastChannel.postMessage({ type: 'ORDER_STATUS_CHANGED', payload: data.order });
+          }
+          return data.order;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[updateOrderStatus] Admin API PATCH error, falling back to client Supabase:', apiErr);
+    }
+  }
 
+  // 2. Fallback to client Supabase
+  const supabase = getSupabase();
   if (isSupabaseConfigured() && supabase) {
     try {
-      // 1. Try secure RPC first
+      // 1. Try secure RPC first (SECURITY DEFINER)
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_order_status', {
         p_order_id: orderId,
         p_status: newStatus,
