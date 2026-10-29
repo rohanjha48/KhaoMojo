@@ -139,10 +139,23 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
 
       if (!supabase) {
         setFormError('Database connection unavailable. Please check your connection.');
+        alert('Database connection unavailable. Please check your connection.');
         return;
       }
 
-      const cart = items;
+      // 1. Map items strictly to what the Postgres RPC expects
+      const mappedCartItems = items.map(item => ({
+        id: item.id,
+        name: item.name || item.title || 'Unknown Item',
+        quantity: item.quantity,
+        price: item.price
+      }));
+
+      // 2. Prevent empty orders
+      if (mappedCartItems.length === 0) {
+        alert("Cart is empty! Cannot place order.");
+        return;
+      }
 
       // Save details for seamless future checkouts
       try {
@@ -160,77 +173,24 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         currentUserId = authData?.user?.id || null;
       }
 
-      // Single atomic RPC transaction with strict parameter key mapping
-      let { data: orderData, error: orderError } = await supabase.rpc('place_order', {
-        p_cart_items: cart.map(item => ({
-          id: item.id,
-          name: item.name || item.title || 'Unknown Item',
-          quantity: item.quantity,
-          price: item.price
-        })),
+      // 3. Call the RPC with EXACT parameter names
+      const { data: orderData, error: orderError } = await supabase.rpc('place_order', {
+        p_cart_items: mappedCartItems,
         p_customer_name: trimmedName,
-        p_payment_method: paymentMethodStr,
-        p_phone_number: trimmedPhone,
-        p_room_number: trimmedRoom,
+        p_payment_method: paymentMethodStr, // 'COD' or 'UPI'
+        p_phone_number: trimmedPhone, 
+        p_room_number: trimmedRoom, 
         p_total_amount: Number(totalAmount.toFixed(2)),
-        p_user_id: currentUserId,
-        p_utr_number: paymentMethodStr === 'UPI' ? trimmedUtr : null,
+        p_user_id: currentUserId, 
+        p_utr_number: paymentMethodStr === 'UPI' ? trimmedUtr : null
       });
 
-      // Fallback: If RPC fails (e.g. signature mismatch or older RPC requiring UTR), fallback to direct table insertion
       if (orderError || !orderData) {
-        console.warn("RPC place_order returned error, attempting fallback direct insert:", orderError?.message);
-
-        let insertPayload = {
-          customer_name: trimmedName,
-          room_number: trimmedRoom,
-          phone_number: trimmedPhone,
-          payment_method: paymentMethodStr,
-          utr_number: passedUtr,
-          total_amount: Number(totalAmount.toFixed(2)),
-          status: 'pending',
-          user_id: currentUserId,
-        };
-
-        let directResult = await supabase
-          .from('orders')
-          .insert([insertPayload])
-          .select()
-          .single();
-
-        // If payment_method column is not yet present on remote DB, retry without it
-        if (directResult.error && (directResult.error.code === 'PGRST204' || directResult.error.message?.includes('payment_method'))) {
-          delete insertPayload.payment_method;
-          directResult = await supabase
-            .from('orders')
-            .insert([insertPayload])
-            .select()
-            .single();
-        }
-
-        if (directResult.error || !directResult.data) {
-          console.error("Direct order insertion also failed:", directResult.error);
-          setFormError(orderError?.message || directResult.error?.message || "Failed to place order");
-          return; 
-        }
-
-        orderData = directResult.data;
-
-        // Insert order items
-        const orderItemsToInsert = cart.map(item => ({
-          order_id: orderData.id,
-          product_id: item.id,
-          product_name: item.name || item.title || 'Unknown Item',
-          quantity: item.quantity,
-          price_at_time: item.price,
-          unit_price: item.price,
-          print_file_url: item.printFileUrl || null,
-        }));
-
-        const itemsRes = await supabase.from('order_items').insert(orderItemsToInsert);
-        if (itemsRes.error) {
-          console.error("Failed to insert order items in fallback:", itemsRes.error);
-        }
+        console.error("RPC Error:", orderError);
+        const errMsg = orderError?.message || "Failed to place order. Please try again.";
+        setFormError(errMsg);
+        alert(errMsg);
+        return;
       }
 
       // Step 2: Trigger Telegram Notification
@@ -244,13 +204,8 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
             phoneNumber: trimmedPhone,
             paymentMethod: paymentMethodStr,
             payment_method: paymentMethodStr,
-            utrNumber: passedUtr,
-            items: cart.map(it => ({
-              id: it.id,
-              name: it.name || it.title,
-              price: it.price,
-              quantity: it.quantity,
-            })),
+            utrNumber: paymentMethodStr === 'UPI' ? trimmedUtr : null,
+            items: mappedCartItems,
             totalAmount: Number(totalAmount.toFixed(2)),
             orderId: orderData.id,
           }),
@@ -278,10 +233,10 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         // ignore confetti errors
       }
 
-      // Step 4: Clear cart, reset form and close drawer
+      // 4. ONLY clear the cart AFTER a successful order
+      clearCart();
       setUtrNumber('');
       setPaymentMethod('COD');
-      clearCart();
       setIsCartOpen(false);
 
       if (onOrderSuccess) {
@@ -290,6 +245,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
     } catch (err) {
       console.error('Checkout failed:', err);
       setFormError('Failed to place order. Please try again.');
+      alert('Failed to place order. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

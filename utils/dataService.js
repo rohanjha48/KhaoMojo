@@ -158,14 +158,20 @@ export async function createOrder({
 
   const cart = items || [];
 
+  const mappedCartItems = cart.map(item => ({
+    id: item.id,
+    name: item.name || item.title || 'Unknown Item',
+    quantity: item.quantity,
+    price: item.price,
+  }));
+
+  if (mappedCartItems.length === 0) {
+    throw new Error('Cart is empty! Cannot place order.');
+  }
+
   // Atomic transactional order creation with strict parameter keys
-  let { data: orderData, error: orderError } = await supabase.rpc('place_order', {
-    p_cart_items: cart.map(item => ({
-      id: item.id,
-      name: item.name || item.title || 'Unknown Item',
-      quantity: item.quantity,
-      price: item.price,
-    })),
+  const { data: orderData, error: orderError } = await supabase.rpc('place_order', {
+    p_cart_items: mappedCartItems,
     p_customer_name: (customerName || '').trim(),
     p_payment_method: paymentMethodStr,
     p_phone_number: (phoneNumber || '').trim(),
@@ -175,54 +181,9 @@ export async function createOrder({
     p_utr_number: paymentMethodStr === 'UPI' ? passedUtr : null,
   });
 
-  // Fallback to direct table insert if RPC is not updated or fails
   if (orderError || !orderData) {
-    console.warn("[createOrder] RPC place_order failed, attempting direct insert fallback:", orderError?.message);
-
-    let insertPayload = {
-      customer_name: (customerName || '').trim(),
-      room_number: (roomNumber || '').trim(),
-      phone_number: (phoneNumber || '').trim(),
-      payment_method: paymentMethodStr,
-      utr_number: passedUtr,
-      total_amount: Number(totalAmount.toFixed(2)),
-      status: 'pending',
-      user_id: userId || null,
-    };
-
-    let directRes = await supabase
-      .from('orders')
-      .insert([insertPayload])
-      .select()
-      .single();
-
-    if (directRes.error && (directRes.error.code === 'PGRST204' || directRes.error.message?.includes('payment_method'))) {
-      delete insertPayload.payment_method;
-      directRes = await supabase
-        .from('orders')
-        .insert([insertPayload])
-        .select()
-        .single();
-    }
-
-    if (directRes.error || !directRes.data) {
-      console.error("[createOrder] Failed to place order:", orderError || directRes.error);
-      throw orderError || directRes.error || new Error("Failed to place order");
-    }
-
-    orderData = directRes.data;
-
-    const orderItemsToInsert = itemsToInsert.map(item => ({
-      order_id: orderData.id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      price_at_time: item.price_at_time,
-      unit_price: item.unit_price,
-      print_file_url: item.print_file_url,
-    }));
-
-    await supabase.from('order_items').insert(orderItemsToInsert);
+    console.error("[createOrder] Failed to place order via RPC:", orderError);
+    throw orderError || new Error("Failed to place order");
   }
 
   const completeOrder = {
