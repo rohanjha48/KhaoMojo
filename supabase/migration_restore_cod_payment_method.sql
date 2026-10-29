@@ -105,10 +105,10 @@ BEGIN
     -- Atomic Insert into order_items & safe stock deduction
     FOR v_item IN SELECT value FROM jsonb_array_elements(p_cart_items)
     LOOP
-        v_product_id := (v_item->>'product_id')::UUID;
-        v_product_name := COALESCE(v_item->>'product_name', v_item->>'name', 'Item');
+        v_product_id := COALESCE((v_item->>'id')::UUID, (v_item->>'product_id')::UUID);
+        v_product_name := COALESCE(v_item->>'name', v_item->>'product_name', 'Item');
         v_quantity := GREATEST(1, COALESCE((v_item->>'quantity')::INT, 1));
-        v_price := COALESCE((v_item->>'price_at_time')::NUMERIC, (v_item->>'price')::NUMERIC, (v_item->>'unit_price')::NUMERIC, 0);
+        v_price := COALESCE((v_item->>'price')::NUMERIC, (v_item->>'price_at_time')::NUMERIC, (v_item->>'unit_price')::NUMERIC, 0);
         v_print_url := NULLIF(trim(COALESCE(v_item->>'print_file_url', v_item->>'printFilePath', '')), '');
 
         INSERT INTO public.order_items (

@@ -4,6 +4,18 @@ import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, ArrowRight, Loader2, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getSupabase } from '../utils/supabase/client';
 
+function getAuthRedirectUrl() {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return `${window.location.origin}/profile`;
+  }
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_VERCEL_URL;
+  if (siteUrl) {
+    const formatted = siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`;
+    return `${formatted.replace(/\/$/, '')}/profile`;
+  }
+  return undefined;
+}
+
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'magiclink'
   const [email, setEmail] = useState('');
@@ -48,7 +60,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         const { error } = await supabase.auth.signInWithOtp({
           email: trimmedEmail,
           options: {
-            emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/profile` : undefined,
+            emailRedirectTo: getAuthRedirectUrl(),
           },
         });
 
@@ -71,6 +83,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           email: trimmedEmail,
           password: password,
           options: {
+            emailRedirectTo: getAuthRedirectUrl(),
             data: {
               full_name: fullName.trim() || undefined,
             },

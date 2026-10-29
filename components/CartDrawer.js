@@ -144,11 +144,14 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
 
       const cart = items;
 
-      // Prepare cart items for atomic insertion
-      const itemsToInsert = cart.map(item => ({
-        product_id: item.id,
-        product_name: item.name || item.title,
+      // Exact mapping required by place_order RPC: id, name, quantity, price (plus aliases for compatibility)
+      const cartItemsPayload = cart.map(item => ({
+        id: item.id,
+        name: item.name || item.title || 'Unknown Item',
         quantity: item.quantity,
+        price: item.price,
+        product_id: item.id,
+        product_name: item.name || item.title || 'Unknown Item',
         price_at_time: item.price,
         unit_price: item.price,
         print_file_url: item.printFileUrl || null,
@@ -175,14 +178,14 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
       let orderError = null;
 
       const rpcResult = await supabase.rpc('place_order', {
+        p_cart_items: cartItemsPayload,
         p_customer_name: trimmedName,
-        p_room_number: trimmedRoom,
-        p_phone_number: trimmedPhone,
-        p_utr_number: passedUtr,
-        p_total_amount: Number(totalAmount.toFixed(2)),
-        p_cart_items: itemsToInsert,
-        p_user_id: currentUserId,
         p_payment_method: paymentMethodStr,
+        p_phone_number: trimmedPhone,
+        p_room_number: trimmedRoom,
+        p_total_amount: Number(totalAmount.toFixed(2)),
+        p_user_id: currentUserId,
+        p_utr_number: paymentMethodStr === 'UPI' ? trimmedUtr : null,
       });
 
       orderData = rpcResult.data;
@@ -228,14 +231,14 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         orderData = directResult.data;
 
         // Insert order items
-        const orderItemsToInsert = itemsToInsert.map(item => ({
+        const orderItemsToInsert = cart.map(item => ({
           order_id: orderData.id,
-          product_id: item.product_id,
-          product_name: item.product_name,
+          product_id: item.id,
+          product_name: item.name || item.title || 'Unknown Item',
           quantity: item.quantity,
-          price_at_time: item.price_at_time,
-          unit_price: item.unit_price,
-          print_file_url: item.print_file_url,
+          price_at_time: item.price,
+          unit_price: item.price,
+          print_file_url: item.printFileUrl || null,
         }));
 
         const itemsRes = await supabase.from('order_items').insert(orderItemsToInsert);

@@ -158,9 +158,12 @@ export async function createOrder({
 
   const cart = items || [];
   const itemsToInsert = cart.map(item => ({
-    product_id: item.id,
-    product_name: item.name || item.title,
+    id: item.id,
+    name: item.name || item.title || 'Unknown Item',
     quantity: item.quantity,
+    price: item.price,
+    product_id: item.id,
+    product_name: item.name || item.title || 'Unknown Item',
     price_at_time: item.price,
     unit_price: item.price,
     print_file_url: item.printFileUrl || null,
@@ -171,14 +174,14 @@ export async function createOrder({
   let orderError = null;
 
   const rpcRes = await supabase.rpc('place_order', {
-    p_customer_name: (customerName || '').trim(),
-    p_room_number: (roomNumber || '').trim(),
-    p_phone_number: (phoneNumber || '').trim(),
-    p_utr_number: passedUtr,
-    p_total_amount: Number(totalAmount.toFixed(2)),
     p_cart_items: itemsToInsert,
-    p_user_id: userId || null,
+    p_customer_name: (customerName || '').trim(),
     p_payment_method: paymentMethodStr,
+    p_phone_number: (phoneNumber || '').trim(),
+    p_room_number: (roomNumber || '').trim(),
+    p_total_amount: Number(totalAmount.toFixed(2)),
+    p_user_id: userId || null,
+    p_utr_number: paymentMethodStr === 'UPI' ? passedUtr : null,
   });
 
   orderData = rpcRes.data;
