@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, 
   MapPin, Phone, User, CheckCircle2, Loader2, Sparkles, 
-  QrCode, FileText, ExternalLink 
+  QrCode, FileText, ExternalLink, Banknote 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCart } from './CartContext';
@@ -33,6 +33,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
   const [customerName, setCustomerName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('COD'); // 'COD' or 'UPI'
   const [utrNumber, setUtrNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
@@ -94,6 +95,9 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
     const trimmedRoom = roomNumber.trim();
     const trimmedPhone = phoneNumber.trim();
     const trimmedUtr = utrNumber.trim();
+    const isUpi = paymentMethod === 'UPI';
+    const paymentMethodStr = isUpi ? 'UPI' : 'COD';
+    const passedUtr = isUpi ? trimmedUtr : null;
 
     const errors = {};
 
@@ -115,10 +119,12 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
       errors.phone = 'Phone number must be 7-15 digits with no letters (optional leading +).';
     }
 
-    if (!trimmedUtr) {
-      errors.utr = 'Please enter the 12-digit UTR / Reference number.';
-    } else if (!UTR_REGEX.test(trimmedUtr)) {
-      errors.utr = 'UTR must be strictly 12 alphanumeric characters.';
+    if (isUpi) {
+      if (!trimmedUtr) {
+        errors.utr = 'Please enter the 12-digit UTR / Reference number.';
+      } else if (!UTR_REGEX.test(trimmedUtr)) {
+        errors.utr = 'UTR must be strictly 12 alphanumeric characters.';
+      }
     }
 
     if (Object.keys(errors).length > 0) {
@@ -138,7 +144,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
 
       const cart = items;
 
-      // Prepare cart items for single atomic transactional RPC
+      // Prepare cart items for atomic insertion
       const itemsToInsert = cart.map(item => ({
         product_id: item.id,
         product_name: item.name || item.title,
@@ -164,21 +170,78 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         currentUserId = authData?.user?.id || null;
       }
 
-      // Single atomic RPC transaction (permanently prevents blank/orphan orders)
-      const { data: orderData, error: orderError } = await supabase.rpc('place_order', {
+      // Order creation: Try single atomic RPC transaction first
+      let orderData = null;
+      let orderError = null;
+
+      const rpcResult = await supabase.rpc('place_order', {
         p_customer_name: trimmedName,
         p_room_number: trimmedRoom,
         p_phone_number: trimmedPhone,
-        p_utr_number: trimmedUtr,
+        p_utr_number: passedUtr,
         p_total_amount: Number(totalAmount.toFixed(2)),
         p_cart_items: itemsToInsert,
         p_user_id: currentUserId,
+        p_payment_method: paymentMethodStr,
       });
 
+      orderData = rpcResult.data;
+      orderError = rpcResult.error;
+
+      // Fallback: If RPC fails (e.g. signature mismatch or older RPC requiring UTR), fallback to direct table insertion
       if (orderError || !orderData) {
-        console.error("Failed to place order via RPC:", orderError);
-        setFormError(orderError?.message || "Failed to place order");
-        return; 
+        console.warn("RPC place_order returned error, attempting fallback direct insert:", orderError?.message);
+
+        let insertPayload = {
+          customer_name: trimmedName,
+          room_number: trimmedRoom,
+          phone_number: trimmedPhone,
+          payment_method: paymentMethodStr,
+          utr_number: passedUtr,
+          total_amount: Number(totalAmount.toFixed(2)),
+          status: 'pending',
+          user_id: currentUserId,
+        };
+
+        let directResult = await supabase
+          .from('orders')
+          .insert([insertPayload])
+          .select()
+          .single();
+
+        // If payment_method column is not yet present on remote DB, retry without it
+        if (directResult.error && (directResult.error.code === 'PGRST204' || directResult.error.message?.includes('payment_method'))) {
+          delete insertPayload.payment_method;
+          directResult = await supabase
+            .from('orders')
+            .insert([insertPayload])
+            .select()
+            .single();
+        }
+
+        if (directResult.error || !directResult.data) {
+          console.error("Direct order insertion also failed:", directResult.error);
+          setFormError(orderError?.message || directResult.error?.message || "Failed to place order");
+          return; 
+        }
+
+        orderData = directResult.data;
+
+        // Insert order items
+        const orderItemsToInsert = itemsToInsert.map(item => ({
+          order_id: orderData.id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          price_at_time: item.price_at_time,
+          unit_price: item.unit_price,
+          print_file_url: item.print_file_url,
+        }));
+
+        const itemsRes = await supabase.from('order_items').insert(orderItemsToInsert);
+        if (itemsRes.error) {
+          console.error("Failed to insert order items in fallback:", itemsRes.error);
+        }
       }
 
       // Step 2: Trigger Telegram Notification
@@ -190,7 +253,9 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
             roomNumber: trimmedRoom,
             customerName: trimmedName,
             phoneNumber: trimmedPhone,
-            utrNumber: trimmedUtr,
+            paymentMethod: paymentMethodStr,
+            payment_method: paymentMethodStr,
+            utrNumber: passedUtr,
             items: cart.map(it => ({
               id: it.id,
               name: it.name || it.title,
@@ -224,8 +289,9 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         // ignore confetti errors
       }
 
-      // Step 4: Clear cart, reset UTR and close drawer
+      // Step 4: Clear cart, reset form and close drawer
       setUtrNumber('');
+      setPaymentMethod('COD');
       clearCart();
       setIsCartOpen(false);
 
@@ -531,79 +597,175 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
                     )}
                   </div>
 
-                  {/* Prepaid UPI Payment Section */}
-                  <div className="p-3.5 rounded-2xl bg-[#1F1C18] border border-[#2E2924] space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-lg bg-[#FF5500]/15 border border-[#FF5500]/30 flex items-center justify-center text-[#FF5500]">
-                          <QrCode className="w-4 h-4" />
+                  {/* Payment Method Selection */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-[#A8A29E]">
+                      Payment Method *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Cash on Delivery (COD) Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentMethod('COD');
+                          if (fieldErrors.utr) setFieldErrors(prev => ({ ...prev, utr: '' }));
+                          if (formError) setFormError('');
+                        }}
+                        className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer relative overflow-hidden ${
+                          paymentMethod === 'COD'
+                            ? 'bg-[#FF5500]/10 border-[#FF5500] text-[#F5F2EB] shadow-md shadow-[#FF5500]/10 ring-1 ring-[#FF5500]'
+                            : 'bg-[#1F1C18] border-[#2E2924] text-[#A8A29E] hover:border-[#38332C] hover:text-[#F5F2EB]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-2">
+                          <div className={`h-7 w-7 rounded-lg flex items-center justify-center transition-colors ${
+                            paymentMethod === 'COD' ? 'bg-[#FF5500] text-white' : 'bg-[#292520] text-[#A8A29E]'
+                          }`}>
+                            <Banknote className="w-4 h-4" />
+                          </div>
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                            paymentMethod === 'COD'
+                              ? 'border-[#FF5500] bg-[#FF5500]'
+                              : 'border-[#2E2924] bg-[#141210]'
+                          }`}>
+                            {paymentMethod === 'COD' && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                            )}
+                          </div>
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-[#F5F2EB]">Prepaid UPI Payment</h4>
-                          <p className="text-[10px] text-[#A8A29E]">GPay • PhonePe • Paytm • Any UPI App</p>
+                          <div className="text-xs font-bold leading-tight text-[#F5F2EB]">Cash on Delivery (COD)</div>
+                          <div className="text-[10px] text-[#A8A29E] mt-0.5">Pay at pickup counter</div>
                         </div>
-                      </div>
-                      <span className="text-xs font-mono font-bold text-[#FF5500] bg-[#FF5500]/10 px-2 py-0.5 rounded-full border border-[#FF5500]/30 tabular-nums">
-                        ₹{totalAmount.toFixed(0)}
-                      </span>
-                    </div>
+                      </button>
 
-                    {/* Static QR Code Image */}
-                    <div className="flex flex-col items-center justify-center py-1">
-                      <div className="p-3 bg-white rounded-2xl shadow-xl border border-zinc-700/60 max-w-[200px] w-full aspect-square flex items-center justify-center transition-transform hover:scale-[1.02] overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src="/img_5915.jpg"
-                          alt="UPI Payment QR Code"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Required Note */}
-                    <p className="text-center text-xs font-medium text-[#F5F2EB]/90 bg-[#292520] p-2 rounded-xl border border-[#2E2924]">
-                      Scan to pay. All orders are strictly prepaid via UPI.
-                    </p>
-
-                    {/* Mandatory 12-digit UTR / Reference No Input */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-[11px] font-semibold text-[#A8A29E]">
-                          Enter 12-digit UTR / Reference No *
-                        </label>
-                        <span className="text-[10px] text-[#FF5500] font-mono">12 alphanumeric</span>
-                      </div>
-                      <div className="relative">
-                        <FileText className="absolute left-3 top-2.5 w-4 h-4 text-[#A8A29E]" />
-                        <input
-                          type="text"
-                          required
-                          minLength={12}
-                          maxLength={12}
-                          pattern="^[A-Za-z0-9]{12}$"
-                          title="Must be strictly 12 alphanumeric characters (letters and numbers only)."
-                          placeholder="e.g. 429812345678"
-                          value={utrNumber}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
-                            setUtrNumber(val);
-                            if (fieldErrors.utr) setFieldErrors((prev) => ({ ...prev, utr: '' }));
-                            if (formError) setFormError('');
-                          }}
-                          className={`w-full pl-9 pr-3 py-2 rounded-xl bg-[#141210] border ${
-                            fieldErrors.utr ? 'border-rose-500/70 focus:border-rose-500' : 'border-[#2E2924] focus:border-[#FF5500]'
-                          } text-sm font-mono tracking-wider text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none transition-colors uppercase`}
-                        />
-                      </div>
-                      {fieldErrors.utr ? (
-                        <p className="text-[11px] text-rose-400 mt-1 font-medium">{fieldErrors.utr}</p>
-                      ) : (
-                        <p className="text-[10px] text-[#A8A29E] mt-1">
-                          After scanning, copy the 12-digit UPI Ref / UTR number from your payment receipt.
-                        </p>
-                      )}
+                      {/* Prepaid (UPI) Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentMethod('UPI');
+                          if (formError) setFormError('');
+                        }}
+                        className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer relative overflow-hidden ${
+                          paymentMethod === 'UPI'
+                            ? 'bg-[#FF5500]/10 border-[#FF5500] text-[#F5F2EB] shadow-md shadow-[#FF5500]/10 ring-1 ring-[#FF5500]'
+                            : 'bg-[#1F1C18] border-[#2E2924] text-[#A8A29E] hover:border-[#38332C] hover:text-[#F5F2EB]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-2">
+                          <div className={`h-7 w-7 rounded-lg flex items-center justify-center transition-colors ${
+                            paymentMethod === 'UPI' ? 'bg-[#FF5500] text-white' : 'bg-[#292520] text-[#A8A29E]'
+                          }`}>
+                            <QrCode className="w-4 h-4" />
+                          </div>
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                            paymentMethod === 'UPI'
+                              ? 'border-[#FF5500] bg-[#FF5500]'
+                              : 'border-[#2E2924] bg-[#141210]'
+                          }`}>
+                            {paymentMethod === 'UPI' && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold leading-tight text-[#F5F2EB]">Prepaid (UPI)</div>
+                          <div className="text-[10px] text-[#A8A29E] mt-0.5">Instant QR scan & UTR</div>
+                        </div>
+                      </button>
                     </div>
                   </div>
+
+                  {/* Conditional Payment UI */}
+                  {paymentMethod === 'COD' ? (
+                    <div className="p-3.5 rounded-2xl bg-[#1F1C18] border border-[#2E2924] space-y-2 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-[#F5F2EB]">Cash on Delivery Selected</h4>
+                          <p className="text-[10px] text-[#A8A29E]">No immediate payment or UTR entry needed</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[#A8A29E] bg-[#292520] p-2.5 rounded-xl border border-[#2E2924] leading-relaxed">
+                        Pay <strong className="text-[#FF5500] font-mono">₹{totalAmount.toFixed(0)}</strong> in cash or via UPI scan when collecting your order at the pickup room.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-2xl bg-[#1F1C18] border border-[#2E2924] space-y-3 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-lg bg-[#FF5500]/15 border border-[#FF5500]/30 flex items-center justify-center text-[#FF5500]">
+                            <QrCode className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-[#F5F2EB]">Prepaid UPI Payment</h4>
+                            <p className="text-[10px] text-[#A8A29E]">GPay • PhonePe • Paytm • Any UPI App</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-[#FF5500] bg-[#FF5500]/10 px-2 py-0.5 rounded-full border border-[#FF5500]/30 tabular-nums">
+                          ₹{totalAmount.toFixed(0)}
+                        </span>
+                      </div>
+
+                      {/* Static QR Code Image */}
+                      <div className="flex flex-col items-center justify-center py-1">
+                        <div className="p-3 bg-white rounded-2xl shadow-xl border border-zinc-700/60 max-w-[200px] w-full aspect-square flex items-center justify-center transition-transform hover:scale-[1.02] overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src="/img_5915.jpg"
+                            alt="UPI Payment QR Code"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Required Note */}
+                      <p className="text-center text-xs font-medium text-[#F5F2EB]/90 bg-[#292520] p-2 rounded-xl border border-[#2E2924]">
+                        Scan to pay ₹{totalAmount.toFixed(0)}. Copy the 12-digit UTR from your receipt below.
+                      </p>
+
+                      {/* Mandatory 12-digit UTR / Reference No Input */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-semibold text-[#A8A29E]">
+                            Enter 12-digit UTR / Reference No *
+                          </label>
+                          <span className="text-[10px] text-[#FF5500] font-mono">12 alphanumeric</span>
+                        </div>
+                        <div className="relative">
+                          <FileText className="absolute left-3 top-2.5 w-4 h-4 text-[#A8A29E]" />
+                          <input
+                            type="text"
+                            required
+                            minLength={12}
+                            maxLength={12}
+                            pattern="^[A-Za-z0-9]{12}$"
+                            title="Must be strictly 12 alphanumeric characters (letters and numbers only)."
+                            placeholder="e.g. 429812345678"
+                            value={utrNumber}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
+                              setUtrNumber(val);
+                              if (fieldErrors.utr) setFieldErrors((prev) => ({ ...prev, utr: '' }));
+                              if (formError) setFormError('');
+                            }}
+                            className={`w-full pl-9 pr-3 py-2 rounded-xl bg-[#141210] border ${
+                              fieldErrors.utr ? 'border-rose-500/70 focus:border-rose-500' : 'border-[#2E2924] focus:border-[#FF5500]'
+                            } text-sm font-mono tracking-wider text-[#F5F2EB] placeholder-[#A8A29E]/50 focus:outline-none transition-colors uppercase`}
+                          />
+                        </div>
+                        {fieldErrors.utr ? (
+                          <p className="text-[11px] text-rose-400 mt-1 font-medium">{fieldErrors.utr}</p>
+                        ) : (
+                          <p className="text-[10px] text-[#A8A29E] mt-1">
+                            After scanning, copy the 12-digit UPI Ref / UTR number from your payment receipt.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {formError && (
                     <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400">
@@ -660,7 +822,9 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
 
               <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#A8A29E]">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#FF5500]" />
-                <span>Strictly Prepaid UPI Order</span>
+                <span>
+                  {paymentMethod === 'COD' ? 'Cash on Delivery (COD) Order' : 'Prepaid UPI Order'}
+                </span>
               </div>
             </div>
           )}

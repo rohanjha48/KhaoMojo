@@ -55,6 +55,7 @@ export default function ProfilePage() {
           customer_name,
           room_number,
           phone_number,
+          payment_method,
           utr_number,
           total_amount,
           status,
@@ -456,11 +457,15 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex items-center gap-2 text-[#A8A29E] bg-[#141210] p-2.5 rounded-xl border border-[#2E2924]">
-                      <span className="font-mono text-[10px] bg-[#292520] text-emerald-400 px-1 rounded border border-[#2E2924]">
-                        UTR
+                      <span className={`font-mono text-[10px] px-1 rounded border ${
+                        order.payment_method === 'COD'
+                          ? 'bg-[#FF5500]/10 text-[#FF5500] border-[#FF5500]/30'
+                          : 'bg-[#292520] text-emerald-400 border-[#2E2924]'
+                      }`}>
+                        {order.payment_method === 'COD' ? 'COD' : 'UTR'}
                       </span>
                       <span className="truncate font-mono">
-                        {order.utr_number || 'Prepaid UPI'}
+                        {order.payment_method === 'COD' ? 'Cash on Delivery' : (order.utr_number || 'Prepaid UPI')}
                       </span>
                     </div>
                   </div>

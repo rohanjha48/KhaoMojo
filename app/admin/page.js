@@ -1023,8 +1023,15 @@ export default function AdminPage() {
                               {order.phone_number}
                             </a>
                           </div>
-                          <div className="text-[10px] text-zinc-500">
-                            Ordered: {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1 border-t border-zinc-800/60">
+                            <span>Ordered: {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[10px] ${
+                              order.payment_method === 'COD'
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}>
+                              {order.payment_method === 'COD' ? 'COD' : (order.utr_number ? `UPI • ${order.utr_number.slice(-6)}` : 'UPI')}
+                            </span>
                           </div>
                         </div>
 
@@ -1050,7 +1057,9 @@ export default function AdminPage() {
                       {/* Footer: Total & Status Action Buttons */}
                       <div className="pt-3 border-t border-zinc-800">
                         <div className="flex items-center justify-between mb-3 text-xs">
-                          <span className="text-zinc-400">Total (Prepaid UPI):</span>
+                          <span className="text-zinc-400">
+                            {order.payment_method === 'COD' ? 'Total (COD):' : 'Total (Prepaid UPI):'}
+                          </span>
                           <span className="text-base font-bold font-mono text-emerald-400">
                             ₹{Number(order.total_amount).toFixed(0)}
                           </span>

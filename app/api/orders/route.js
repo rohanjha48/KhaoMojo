@@ -36,13 +36,16 @@ export async function POST(request) {
               .join('\n')
           : '  No items specified';
 
+        const isCOD = (newOrder.payment_method || body.payment_method || body.paymentMethod || '').toUpperCase() === 'COD';
+        const paymentLabel = isCOD ? 'Cash on Delivery (COD)' : (body.utrNumber ? `UPI Prepaid (UTR: ${body.utrNumber})` : 'UPI Prepaid');
+
         const text = [
-          `🚨 <b>NEW KHAOMOJO ORDER RECEIVED!</b> 🚀`,
+          `🚨 <b>NEW KHAOMOJO ${isCOD ? 'COD' : 'PREPAID'} ORDER RECEIVED!</b> 🚀`,
           ``,
           `📍 <b>Room / Location:</b> <code>${newOrder.room_number || body.roomNumber || 'N/A'}</code>`,
           `👤 <b>Customer:</b> ${newOrder.customer_name || body.customerName || 'N/A'}`,
           `📞 <b>Phone:</b> ${newOrder.phone_number || body.phoneNumber || 'N/A'}`,
-          `💳 <b>Payment:</b> <b>UPI Prepaid</b>`,
+          `💳 <b>Payment:</b> <b>${paymentLabel}</b>`,
           ``,
           `🛒 <b>Items Ordered:</b>`,
           itemsFormatted,

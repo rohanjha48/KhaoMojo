@@ -99,7 +99,7 @@ export default function OrderSuccessModal({ order, onClose }) {
           </div>
 
           <div className="mt-3 pt-2 border-t border-zinc-800 flex justify-between text-sm font-bold text-white">
-            <span>Total Paid (Prepaid UPI):</span>
+            <span>{order.payment_method === 'COD' ? 'Total Payable (Cash on Delivery):' : 'Total Paid (Prepaid UPI):'}</span>
             <span className="text-emerald-400 font-mono">
               ₹{Number(order.total_amount).toFixed(0)}
             </span>

@@ -11,7 +11,7 @@ function escapeHtml(str) {
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { roomNumber, customerName, phoneNumber, utrNumber, items, totalAmount, orderId } = body || {};
+    const { roomNumber, customerName, phoneNumber, utrNumber, items, totalAmount, orderId, paymentMethod, payment_method } = body || {};
 
     // Read bot token and chat ID from environment variables (supporting standard and NEXT_PUBLIC prefixes)
     const rawBotToken = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
@@ -47,19 +47,24 @@ export async function POST(request) {
       .join('\n');
 
     // Build notification message
+    const methodStr = (payment_method || paymentMethod || (utrNumber ? 'UPI' : 'COD')).toUpperCase();
+    const isCOD = methodStr === 'COD';
     const safeRoom = escapeHtml(roomNumber || 'N/A');
     const safeCustomer = customerName ? escapeHtml(customerName) : null;
     const safePhone = phoneNumber ? escapeHtml(phoneNumber) : null;
     const safeUtr = utrNumber ? escapeHtml(utrNumber) : null;
     const safeOrderId = orderId ? escapeHtml(orderId) : null;
+    const paymentLabel = isCOD 
+      ? 'Cash on Delivery (COD)' 
+      : (safeUtr ? `UPI Prepaid (UTR: <code>${safeUtr}</code>)` : 'UPI Prepaid');
 
     const message = [
-      `🚨 <b>NEW KHAOMOJO PREPAID ORDER RECEIVED!</b> 🚀`,
+      `🚨 <b>NEW KHAOMOJO ${isCOD ? 'COD' : 'PREPAID'} ORDER RECEIVED!</b> 🚀`,
       ``,
       `📍 <b>Room / Location:</b> <code>${safeRoom}</code>`,
       safeCustomer ? `👤 <b>Customer:</b> ${safeCustomer}` : null,
       safePhone ? `📞 <b>Phone:</b> ${safePhone}` : null,
-      safeUtr ? `💳 <b>Payment:</b> <b>UPI Prepaid</b> (UTR: <code>${safeUtr}</code>)` : `💳 <b>Payment:</b> <b>UPI Prepaid</b>`,
+      `💳 <b>Payment:</b> <b>${paymentLabel}</b>`,
       ``,
       `🛒 <b>Items Ordered:</b>`,
       itemsFormatted || '  No items specified',
