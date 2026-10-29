@@ -144,19 +144,6 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
 
       const cart = items;
 
-      // Exact mapping required by place_order RPC: id, name, quantity, price (plus aliases for compatibility)
-      const cartItemsPayload = cart.map(item => ({
-        id: item.id,
-        name: item.name || item.title || 'Unknown Item',
-        quantity: item.quantity,
-        price: item.price,
-        product_id: item.id,
-        product_name: item.name || item.title || 'Unknown Item',
-        price_at_time: item.price,
-        unit_price: item.price,
-        print_file_url: item.printFileUrl || null,
-      }));
-
       // Save details for seamless future checkouts
       try {
         localStorage.setItem('khaomojo_customer_name', trimmedName);
@@ -173,12 +160,14 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         currentUserId = authData?.user?.id || null;
       }
 
-      // Order creation: Try single atomic RPC transaction first
-      let orderData = null;
-      let orderError = null;
-
-      const rpcResult = await supabase.rpc('place_order', {
-        p_cart_items: cartItemsPayload,
+      // Single atomic RPC transaction with strict parameter key mapping
+      let { data: orderData, error: orderError } = await supabase.rpc('place_order', {
+        p_cart_items: cart.map(item => ({
+          id: item.id,
+          name: item.name || item.title || 'Unknown Item',
+          quantity: item.quantity,
+          price: item.price
+        })),
         p_customer_name: trimmedName,
         p_payment_method: paymentMethodStr,
         p_phone_number: trimmedPhone,
@@ -187,9 +176,6 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         p_user_id: currentUserId,
         p_utr_number: paymentMethodStr === 'UPI' ? trimmedUtr : null,
       });
-
-      orderData = rpcResult.data;
-      orderError = rpcResult.error;
 
       // Fallback: If RPC fails (e.g. signature mismatch or older RPC requiring UTR), fallback to direct table insertion
       if (orderError || !orderData) {

@@ -157,24 +157,15 @@ export async function createOrder({
   const passedUtr = isUpi ? (utrNumber || '').trim() : null;
 
   const cart = items || [];
-  const itemsToInsert = cart.map(item => ({
-    id: item.id,
-    name: item.name || item.title || 'Unknown Item',
-    quantity: item.quantity,
-    price: item.price,
-    product_id: item.id,
-    product_name: item.name || item.title || 'Unknown Item',
-    price_at_time: item.price,
-    unit_price: item.price,
-    print_file_url: item.printFileUrl || null,
-  }));
 
-  // Atomic transactional order creation
-  let orderData = null;
-  let orderError = null;
-
-  const rpcRes = await supabase.rpc('place_order', {
-    p_cart_items: itemsToInsert,
+  // Atomic transactional order creation with strict parameter keys
+  let { data: orderData, error: orderError } = await supabase.rpc('place_order', {
+    p_cart_items: cart.map(item => ({
+      id: item.id,
+      name: item.name || item.title || 'Unknown Item',
+      quantity: item.quantity,
+      price: item.price,
+    })),
     p_customer_name: (customerName || '').trim(),
     p_payment_method: paymentMethodStr,
     p_phone_number: (phoneNumber || '').trim(),
@@ -183,9 +174,6 @@ export async function createOrder({
     p_user_id: userId || null,
     p_utr_number: paymentMethodStr === 'UPI' ? passedUtr : null,
   });
-
-  orderData = rpcRes.data;
-  orderError = rpcRes.error;
 
   // Fallback to direct table insert if RPC is not updated or fails
   if (orderError || !orderData) {
