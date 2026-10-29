@@ -2,6 +2,7 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "../components/CartContext";
 import { AuthProvider } from "../components/AuthContext";
+import { Analytics } from '@vercel/analytics/next';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -40,6 +41,7 @@ export default function RootLayout({ children }) {
             {children}
           </CartProvider>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
