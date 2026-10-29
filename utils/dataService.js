@@ -186,10 +186,20 @@ export async function createOrder({
     throw orderError || new Error("Failed to place order");
   }
 
+  const safeOrderId = typeof orderData === 'object' && orderData?.id
+    ? orderData.id
+    : String(orderData);
+
   const completeOrder = {
-    ...orderData,
+    id: safeOrderId,
+    customer_name: (customerName || '').trim(),
+    room_number: (roomNumber || '').trim(),
+    phone_number: (phoneNumber || '').trim(),
+    payment_method: paymentMethodStr,
+    utr_number: paymentMethodStr === 'UPI' ? passedUtr : null,
+    total_amount: Number(totalAmount.toFixed(2)),
     order_items: cart.map(it => ({
-      order_id: orderData.id,
+      order_id: safeOrderId,
       product_id: it.id,
       product_name: it.name || it.title,
       quantity: it.quantity,
@@ -197,6 +207,7 @@ export async function createOrder({
       unit_price: it.price,
       products: { id: it.id, name: it.name || it.title },
     })),
+    ...(typeof orderData === 'object' && orderData !== null ? orderData : {}),
   };
 
   if (broadcastChannel && typeof window !== 'undefined') {

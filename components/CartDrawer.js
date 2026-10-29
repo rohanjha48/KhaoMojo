@@ -193,6 +193,28 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
         return;
       }
 
+      // Safely handle both UUID string or JSONB object return types
+      const safeOrderId = typeof orderData === 'object' && orderData?.id ? orderData.id : String(orderData);
+
+      const createdOrder = {
+        id: safeOrderId,
+        customer_name: trimmedName,
+        room_number: trimmedRoom,
+        phone_number: trimmedPhone,
+        payment_method: paymentMethodStr,
+        utr_number: paymentMethodStr === 'UPI' ? trimmedUtr : null,
+        total_amount: Number(totalAmount.toFixed(2)),
+        items: mappedCartItems.map(item => ({
+          id: item.id,
+          product_id: item.id,
+          product_name: item.name,
+          quantity: item.quantity,
+          unit_price: item.price,
+          price_at_time: item.price,
+        })),
+        ...(typeof orderData === 'object' && orderData !== null ? orderData : {}),
+      };
+
       // Step 2: Trigger Telegram Notification
       try {
         const notifyRes = await fetch('/api/notify', {
@@ -207,7 +229,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
             utrNumber: paymentMethodStr === 'UPI' ? trimmedUtr : null,
             items: mappedCartItems,
             totalAmount: Number(totalAmount.toFixed(2)),
-            orderId: orderData.id,
+            orderId: safeOrderId,
           }),
         });
         const notifyData = await notifyRes.json().catch(() => ({}));
@@ -240,7 +262,7 @@ export default function CartDrawer({ onOrderSuccess, storeIsOpen = false }) {
       setIsCartOpen(false);
 
       if (onOrderSuccess) {
-        onOrderSuccess(orderData);
+        onOrderSuccess(createdOrder);
       }
     } catch (err) {
       console.error('Checkout failed:', err);

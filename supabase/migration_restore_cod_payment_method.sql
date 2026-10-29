@@ -14,6 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_payment_method ON public.orders(payment_me
 DROP FUNCTION IF EXISTS public.place_order(TEXT, TEXT, TEXT, TEXT, NUMERIC, JSONB);
 DROP FUNCTION IF EXISTS public.place_order(TEXT, TEXT, TEXT, TEXT, NUMERIC, JSONB, UUID);
 DROP FUNCTION IF EXISTS public.place_order(TEXT, TEXT, TEXT, TEXT, NUMERIC, JSONB, UUID, TEXT);
+DROP FUNCTION IF EXISTS public.place_order(JSONB, TEXT, TEXT, TEXT, TEXT, NUMERIC, UUID, TEXT);
 
 CREATE OR REPLACE FUNCTION public.place_order(
     p_customer_name TEXT,
@@ -25,7 +26,7 @@ CREATE OR REPLACE FUNCTION public.place_order(
     p_user_id UUID DEFAULT NULL,
     p_payment_method TEXT DEFAULT 'COD'
 )
-RETURNS JSONB
+RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -38,7 +39,6 @@ DECLARE
     v_quantity INT;
     v_price NUMERIC;
     v_print_url TEXT;
-    v_result JSONB;
     v_final_user_id UUID;
     v_method TEXT;
     v_utr TEXT;
@@ -105,7 +105,16 @@ BEGIN
     -- Atomic Insert into order_items & safe stock deduction
     FOR v_item IN SELECT value FROM jsonb_array_elements(p_cart_items)
     LOOP
-        v_product_id := COALESCE((v_item->>'id')::UUID, (v_item->>'product_id')::UUID);
+        -- Safely extract product_id as UUID (checks 'id' then 'product_id', strictly casts to ::UUID)
+        v_product_id := COALESCE(
+            NULLIF(v_item->>'id', '')::UUID,
+            NULLIF(v_item->>'product_id', '')::UUID
+        );
+
+        IF v_product_id IS NULL THEN
+            RAISE EXCEPTION 'Invalid product ID in cart item.';
+        END IF;
+
         v_product_name := COALESCE(v_item->>'name', v_item->>'product_name', 'Item');
         v_quantity := GREATEST(1, COALESCE((v_item->>'quantity')::INT, 1));
         v_price := COALESCE((v_item->>'price')::NUMERIC, (v_item->>'price_at_time')::NUMERIC, (v_item->>'unit_price')::NUMERIC, 0);
@@ -135,38 +144,7 @@ BEGIN
         WHERE id = v_product_id;
     END LOOP;
 
-    -- Return full order with items
-    SELECT jsonb_build_object(
-        'id', o.id,
-        'customer_name', o.customer_name,
-        'room_number', o.room_number,
-        'phone_number', o.phone_number,
-        'payment_method', o.payment_method,
-        'utr_number', o.utr_number,
-        'total_amount', o.total_amount,
-        'status', o.status,
-        'user_id', o.user_id,
-        'created_at', o.created_at,
-        'order_items', COALESCE((
-            SELECT jsonb_agg(jsonb_build_object(
-                'id', oi.id,
-                'order_id', oi.order_id,
-                'product_id', oi.product_id,
-                'product_name', oi.product_name,
-                'quantity', oi.quantity,
-                'price_at_time', oi.price_at_time,
-                'unit_price', oi.unit_price,
-                'print_file_url', oi.print_file_url
-            ))
-            FROM public.order_items oi
-            WHERE oi.order_id = o.id
-        ), '[]'::jsonb)
-    )
-    INTO v_result
-    FROM public.orders o
-    WHERE o.id = v_order_id;
-
-    RETURN v_result;
+    RETURN v_order_id;
 END;
 $$;
 
